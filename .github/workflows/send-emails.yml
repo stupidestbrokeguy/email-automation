@@ -2,8 +2,11 @@ name: Daily Email Automation
 
 on:
   schedule:
+    # Runs every day at 10:00 AM UTC (2:00 PM Dubai time)
     - cron: '0 10 * * *'
+  # Manual trigger from GitHub UI
   workflow_dispatch:
+  # Runs when you push to main (for testing)
   push:
     branches: [ main ]
 
@@ -11,64 +14,69 @@ jobs:
   send-emails:
     runs-on: ubuntu-latest
     
-    # ✅ THIS IS THE KEY FIX - Give write permissions
+    # ✅ CRITICAL: Give write permission to push progress
     permissions:
       contents: write
+    
+    # Optional: Silence Node.js warnings
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
     
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-        
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pandas openpyxl
-        
+    
     - name: Send daily email batch
       env:
         EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
       run: |
         python email_automation.py
-        
-    - name: Upload progress files
+    
+    - name: Upload progress files (backup)
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: email-progress-logs-${{ github.run_id }}
+        name: email-progress-${{ github.run_id }}
         path: |
           send_progress.json
           email_sending_log.txt
-          *.xlsx
+          failed_batch_*.xlsx
         retention-days: 30
-        
+    
     - name: Commit and push progress
       if: always()
       run: |
-        # Configure git
+        # Setup git identity
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
         
-        # Pull latest changes first
-        git pull origin main --rebase || true
+        # Use GITHUB_TOKEN for authentication
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+        
+        # Pull latest changes
+        git pull origin main --no-rebase || true
         
         # Add progress files
         git add send_progress.json email_sending_log.txt 2>/dev/null || true
         
-        # Check if there are changes
-        if git diff --staged --quiet; then
-          echo "No changes to commit"
+        # Commit and push if there are changes
+        if git diff --cached --quiet; then
+          echo "ℹ️ No changes to commit"
         else
-          # Commit changes
-          git commit -m "Update email progress - Batch completed [skip ci]"
-          
-          # Push using GITHUB_TOKEN
+          git commit -m "Update email progress [skip ci]"
           git push origin HEAD:main
-          echo "✅ Progress committed and pushed!"
+          echo "✅ Progress pushed successfully!"
         fi
