@@ -1,4 +1,4 @@
-name: Daily Email Automation
+name: Daily Email Automation Real Estate
 
 on:
   schedule:
