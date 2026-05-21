@@ -41,7 +41,7 @@ jobs:
         python email_automation.py
 
     - name: Upload progress files
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: email-progress-logs
