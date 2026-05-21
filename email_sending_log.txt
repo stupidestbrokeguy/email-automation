@@ -6,3 +6,4 @@
 2026-05-21 12:53:31 - Sent batch up to index 101 (1 emails) - Cycle 1
 2026-05-21 12:54:27 - Sent batch up to index 102 (1 emails) - Cycle 1
 2026-05-21 13:03:14 - Sent batch up to index 103 (1 emails) - Cycle 1
+2026-05-21 13:15:28 - Sent batch up to index 193 (90 emails) - Cycle 1
