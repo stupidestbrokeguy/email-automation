@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   # Runs when you push to main (for testing)
   push:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   send-emails:
@@ -67,12 +67,12 @@ jobs:
         # Use PAT token instead of GITHUB_TOKEN
         git remote set-url origin https://stupidestbrokeguy:${PAT_TOKEN}@github.com/stupidestbrokeguy/email-automation.git
         
-        git pull origin main --no-rebase || true
+        git pull origin master --no-rebase || true
         git add send_progress.json email_sending_log.txt 2>/dev/null || true
         
         if ! git diff --cached --quiet; then
-          git commit -m "Update email progress [skip ci]"
-          git push origin HEAD:main
+          git commit -m "Update emails [skip ci]"
+          git push origin HEAD:master
           echo "✅ Progress pushed successfully!"
         else
           echo "ℹ️ No changes to commit"
