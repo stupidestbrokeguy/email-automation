@@ -2,61 +2,99 @@ name: Daily Email Automation
 
 on:
   schedule:
-    # Runs every day at 9:00 AM UTC (5:00 PM Dubai time)
-    - cron: '0 9 * * *'
-  # Allows manual trigger from GitHub UI
+    # Runs every day at 10:00 AM UTC (2:00 PM Dubai time)
+    - cron: '0 10 * * *'
+  # Manual trigger from GitHub UI
   workflow_dispatch:
-  # Also runs when you push code (for testing)
+  # Also runs when you push to main (for testing)
   push:
     branches: [ main ]
 
 jobs:
   send-emails:
     runs-on: ubuntu-latest
-
+    
+    # Give write permissions to commit and push
+    permissions:
+      contents: write
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-
+        
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pandas openpyxl
-
-    - name: List files (debugging)
+        
+    - name: List files before run (debugging)
       run: |
+        echo "Files before sending:"
         ls -la
-        echo "Current directory contents:"
-        pwd
-
+        
     - name: Send daily email batch
       env:
         EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
       run: |
         python email_automation.py
-
-    - name: Upload progress files
+        
+    - name: List files after run (debugging)
+      run: |
+        echo "Files after sending:"
+        ls -la
+        echo "Progress file content:"
+        cat send_progress.json || echo "No progress file yet"
+        
+    - name: Upload progress files as artifacts
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: email-progress-logs
+        name: email-progress-logs-${{ github.run_id }}
         path: |
           send_progress.json
           email_sending_log.txt
-          *.xlsx
+          failed_batch_*.xlsx
         retention-days: 30
-
+        
     - name: Commit and push progress
       if: always()
       run: |
+        # Configure git
         git config --global user.name 'GitHub Actions Bot'
-        git config --global user.email 'actions@github.com'
-        git pull origin main
-        git add send_progress.json email_sending_log.txt 2>/dev/null || true
-        git diff --quiet && git diff --staged --quiet || git commit -m "Update email progress [skip ci]"
-        git push origin main
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        
+        # Check if progress files exist and have changes
+        if [ -f "send_progress.json" ] || [ -f "email_sending_log.txt" ]; then
+          echo "Progress files found, attempting to commit..."
+          
+          # Add the files
+          git add send_progress.json email_sending_log.txt 2>/dev/null || true
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            # Commit the changes
+            git commit -m "Update email progress [skip ci]"
+            echo "Committed changes"
+            
+            # Push back to main
+            git push origin HEAD:main
+            echo "Pushed changes to GitHub"
+          fi
+        else
+          echo "No progress files to commit"
+        fi
+        
+        # Show current progress for debugging
+        if [ -f "send_progress.json" ]; then
+          echo "Current progress:"
+          cat send_progress.json
+        fi
