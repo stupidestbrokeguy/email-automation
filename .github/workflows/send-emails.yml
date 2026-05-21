@@ -5,10 +5,10 @@ on:
     # Runs every day at 10:00 AM UTC (2:00 PM Dubai time)
     - cron: '0 10 * * *'
   # Manual trigger from GitHub UI
-  workflow_dispatch:
-  # Runs when you push to main (for testing)
-  push:
-    branches: [ master ]
+  # workflow_dispatch:
+  # # Runs when you push to main (for testing)
+  # push:
+  #   branches: [ master ]
 
 jobs:
   send-emails:
