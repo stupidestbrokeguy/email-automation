@@ -347,7 +347,7 @@ def main():
     # Configuration - Change these as needed
     EXCEL_FILE = "emails1.xlsx"
     CV_PATH = "MAXWELLTINASHE.pdf"
-    BATCH_SIZE = 90  # Change to 90 for production, use 2 for testing
+    BATCH_SIZE = 1  # Change to 90 for production, use 2 for testing
     CC_EMAILS = []  # Add emails if needed: ["hr@company.com"]
     DELAY_BETWEEN_EMAILS = 5  # Seconds between emails
 
