@@ -1,0 +1,62 @@
+name: Daily Email Automation
+
+on:
+  schedule:
+    # Runs every day at 9:00 AM UTC (5:00 PM Dubai time)
+    - cron: '0 9 * * *'
+  # Allows manual trigger from GitHub UI
+  workflow_dispatch:
+  # Also runs when you push code (for testing)
+  push:
+    branches: [ main ]
+
+jobs:
+  send-emails:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas openpyxl
+
+    - name: List files (debugging)
+      run: |
+        ls -la
+        echo "Current directory contents:"
+        pwd
+
+    - name: Send daily email batch
+      env:
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      run: |
+        python email_automation.py
+
+    - name: Upload progress files
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: email-progress-logs
+        path: |
+          send_progress.json
+          email_sending_log.txt
+          *.xlsx
+        retention-days: 30
+
+    - name: Commit and push progress
+      if: always()
+      run: |
+        git config --global user.name 'GitHub Actions Bot'
+        git config --global user.email 'actions@github.com'
+        git pull origin main
+        git add send_progress.json email_sending_log.txt 2>/dev/null || true
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update email progress [skip ci]"
+        git push origin main
