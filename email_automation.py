@@ -16,6 +16,7 @@ class EmailSender:
         self.SMTP_SERVER = smtp_server
         self.SMTP_PORT = smtp_port
         self.SENDER_EMAIL = "dncezim@gmail.com"
+        self.SENDER_PASSWORD = os.environ.get('EMAIL_PASSWORD', "zwsmljneeupfupgv")
         # ⚠️ REPLACE WITH YOUR APP PASSWORD
         # For GitHub Actions, use Secrets: ${{ secrets.EMAIL_PASSWORD }}
         self.SENDER_PASSWORD = "zwsmljneeupfupgv"
@@ -349,7 +350,7 @@ def main():
     # Configuration - Change these as needed
     EXCEL_FILE = "emails.xlsx"
     CV_PATH = "MAXWELLTINASHE.pdf"
-    BATCH_SIZE = 90  # Change to 90 for production, use 2 for testing
+    BATCH_SIZE = 1  # Change to 90 for production, use 2 for testing
     CC_EMAILS = []  # Add emails if needed: ["hr@company.com"]
     DELAY_BETWEEN_EMAILS = 5  # Seconds between emails
 
