@@ -383,3 +383,18 @@ def main():
 
 if __name__ == "__main__":
     main()
+# At the very end of email_automation.py, add this function if not present
+def save_progress_locally(last_index, batch_size):
+    """Save progress to JSON file"""
+    import json
+    from datetime import datetime
+    
+    progress = {
+        'last_index': last_index,
+        'last_date': datetime.now().isoformat(),
+        'total_sent': last_index,
+        'batch_size': batch_size
+    }
+    with open('send_progress.json', 'w') as f:
+        json.dump(progress, f, indent=2)
+    print(f"✅ Progress saved: {last_index} emails sent")
