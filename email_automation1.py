@@ -100,7 +100,7 @@ def save_progress(progress_file, last_index, batch_size, total_sent_today=0, com
         json.dump(progress, f, indent=4)
 
     # Also create a simple log file
-    with open("email_sending_log.txt", "a") as log:
+    with open("email_sending_log1.txt", "a") as log:
         log.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Sent batch up to index {last_index} ({total_sent_today} emails) - Cycle {completed_cycles}\n")
 
 def auto_reset_progress(progress_file, total_emails, batch_size):
