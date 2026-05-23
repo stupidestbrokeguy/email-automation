@@ -132,7 +132,7 @@ def auto_reset_progress(progress_file, total_emails, batch_size):
         with open(progress_file, 'w') as f:
             json.dump(progress, f, indent=4)
 
-        with open("email_sending_log.txt", "a") as log:
+        with open("email_sending_log1.txt", "a") as log:
             log.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - 🔄 AUTO-RESET: Starting cycle #{completed_cycles + 1}\n")
 
         print(f"\n🔄 AUTO-RESET COMPLETED! Starting cycle #{completed_cycles + 1}")
@@ -144,7 +144,7 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
     """
     Completely automated bulk email sender with no user input
     """
-    progress_file = "send_progress.json"
+    progress_file = "send_progress1.json"
 
     # Read Excel file
     try:
@@ -347,7 +347,7 @@ def main():
     # Configuration - Change these as needed
     EXCEL_FILE = "emails1.xlsx"
     CV_PATH = "MAXWELLTINASHE.pdf"
-    BATCH_SIZE = 90  # Change to 90 for production, use 2 for testing
+    BATCH_SIZE = 1  # Change to 90 for production, use 2 for testing
     CC_EMAILS = []  # Add emails if needed: ["hr@company.com"]
     DELAY_BETWEEN_EMAILS = 5  # Seconds between emails
 
@@ -392,6 +392,6 @@ def save_progress_locally(last_index, batch_size):
         'total_sent': last_index,
         'batch_size': batch_size
     }
-    with open('send_progress.json', 'w') as f:
+    with open('send_progress1.json', 'w') as f:
         json.dump(progress, f, indent=2)
     print(f"✅ Progress saved: {last_index} emails sent")
