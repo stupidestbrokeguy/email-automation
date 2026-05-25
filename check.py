@@ -417,7 +417,7 @@ class CompleteCalendarExtractor:
 if __name__ == "__main__":
     import sys
     
-    PDF_PATH = r"C:\Users\Stupid\Documents\0520\your_document.pdf"
+    PDF_PATH = "your_document.pdf"
     OUTPUT_DIR = "extracted_date_pages"
     
     target_date = None
