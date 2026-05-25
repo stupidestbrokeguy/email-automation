@@ -1,0 +1,49 @@
+name: Daily Creative Daily Youtube Upload
+
+on:
+  schedule:
+    # Runs every day at 10:00 AM UTC (2:00 PM Dubai time)
+    - cron: '0 12 * * *'
+   Manual trigger from GitHub UI
+   workflow_dispatch:
+   # Runs when you push to main (for testing)
+   push:
+     branches: [ master ]
+
+jobs:
+  send-creativedaily:
+    runs-on: ubuntu-latest
+    
+    # ✅ CRITICAL: Give write permission to push progress
+    permissions:
+      contents: write
+    
+    # Optional: Silence Node.js warnings
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install PyMuPDF moviepy google-api-python-client google-auth-oauthlib google-auth-httplib2 pillow
+    
+    - name: Send daily creative daily
+      env:
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      run: |
+        python check.py
+    
+
+    
