@@ -61,4 +61,5 @@ jobs:
         # Get today's date in YYYY-MM-DD format
         TODAY=$(date +'%Y-%m-%d')
         echo "📅 Processing date: $TODAY"
-        python check.py $TODAY
+        # python check.py $TODAY
+        python check.py 2025-06-10
