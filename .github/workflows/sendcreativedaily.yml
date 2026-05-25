@@ -62,4 +62,4 @@ jobs:
         TODAY=$(date +'%Y-%m-%d')
         echo "📅 Processing date: $TODAY"
         # python check.py $TODAY
-        python check.py 2025-06-10
+        python check.py 2026-06-10
