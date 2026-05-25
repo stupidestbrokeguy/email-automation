@@ -4,7 +4,7 @@ on:
   schedule:
     # Runs every day at 10:00 AM UTC (2:00 PM Dubai time)
     - cron: '0 12 * * *'
-   Manual trigger from GitHub UI
+   # Manual trigger from GitHub UI
    workflow_dispatch:
    # Runs when you push to main (for testing)
    push:
