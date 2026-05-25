@@ -1,8 +1,8 @@
 {
-    "last_index": 35,
-    "last_date": "2026-05-24 15:41:17",
-    "total_sent": 35,
-    "batch_size": 8,
-    "last_batch_count": 8,
+    "last_index": 125,
+    "last_date": "2026-05-25 15:32:34",
+    "total_sent": 125,
+    "batch_size": 90,
+    "last_batch_count": 90,
     "completed_cycles": 0
 }
