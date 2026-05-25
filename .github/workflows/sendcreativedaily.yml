@@ -1,26 +1,24 @@
-name: Daily Creative Daily Youtube Upload
+name: Daily Creative Daily YouTube Upload
 
 on:
   schedule:
-    # Runs every day at 10:00 AM UTC (2:00 PM Dubai time)
-    - cron: '0 12 * * *'
-   # Manual trigger from GitHub UI
-   workflow_dispatch:
-   # Runs when you push to main (for testing)
-   push:
-     branches: [ master ]
+    # Runs every day at 6:00 AM UTC (10:00 AM Dubai time - UTC+4)
+    - cron: '0 6 * * *'
+  
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
+  
+  # Runs when you push to main (for testing)
+  push:
+    branches: [ main, master ]
 
 jobs:
   send-creativedaily:
     runs-on: ubuntu-latest
     
-    # ✅ CRITICAL: Give write permission to push progress
+    # Give write permission to push progress
     permissions:
       contents: write
-    
-    # Optional: Silence Node.js warnings
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
     - name: Checkout code
@@ -39,11 +37,28 @@ jobs:
         python -m pip install --upgrade pip
         pip install PyMuPDF moviepy google-api-python-client google-auth-oauthlib google-auth-httplib2 pillow
     
+    - name: Install FFmpeg (required for moviepy)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+    
+    - name: Create client_secrets.json from secret
+      run: |
+        echo '${{ secrets.YOUTUBE_CLIENT_SECRETS }}' > client_secrets.json
+        echo "✅ client_secrets.json created"
+    
+    - name: List files for debugging
+      run: |
+        ls -la
+        echo "📁 Current directory contents:"
+        ls -la
+    
     - name: Send daily creative daily
       env:
-        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
+        TARGET_DATE: ${{ github.event.schedule && 'today' || inputs.date }}
       run: |
-        python check.py
-    
-
-    
+        # Get today's date in YYYY-MM-DD format
+        TODAY=$(date +'%Y-%m-%d')
+        echo "📅 Processing date: $TODAY"
+        python check.py $TODAY
