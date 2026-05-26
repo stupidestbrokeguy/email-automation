@@ -334,7 +334,7 @@ class CompleteCalendarExtractor:
                 'snippet': {
                     'title': video_title,
                     'description': video_description,
-                    'tags': ['creativedaily', 'trending', 'viral', 'fyp', 'explore', 'calendar', target_date],
+                    'tags': ['Dubai','creativedaily', 'trending', 'viral', 'fyp', 'explore', 'calendar','UAE','DubaiCreatives', target_date],
                     'categoryId': '22'
                 },
                 'status': {
