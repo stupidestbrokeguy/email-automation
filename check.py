@@ -263,7 +263,7 @@ class CompleteCalendarExtractor:
         formatted_date = date_obj.strftime("%B %d, %Y")
         
         # ===== CUSTOM TITLE =====
-        video_title = f"Creative Daily | {formatted_date} | Stupid Orange | Stupidest Broke Guy"
+        video_title = f"Creative Daily | {formatted_date} | Stupid Orange | Stupidest Broke Guy | #Dubai #stupidestbrokeguy #DubaiCreatives #creativedaily #stupidorange"
         
         # ===== CUSTOM DESCRIPTION =====
         if page_text:
