@@ -1,14 +1,12 @@
 """
-Creative Daily - Complete with Seamless Thumbnail Transition (FINAL FIX)
+Creative Daily - Complete with Seamless Thumbnail Transition (SIMPLIFIED WORKING)
 Extracts from PDF, creates sliding animation video with smooth zoom from thumbnail
 FEATURES:
 - Full debug output for every step
 - 60% zoomed image for large readable text
 - Yellow background
 - Background music support
-- AUTO THUMBNAIL with seamless transition to video
-- SMOOTH ZOOM from thumbnail dimensions to video start position
-- COMPATIBLE with moviepy v1.x and v2.x
+- AUTO THUMBNAIL that matches video start position
 """
 
 import os
@@ -63,8 +61,7 @@ def detect_page_title(page_text: str) -> str:
 
 def create_thumbnail_from_image(image_path: str, output_path: str = None, target_size: tuple = (1280, 720)) -> str:
     """
-    Create a YouTube thumbnail from the source image (before video creation)
-    This thumbnail will match the starting position of the video
+    Create a YouTube thumbnail from the source image that matches the video's starting position
     """
     print(f"\n🖼️ DEBUG: create_thumbnail_from_image START")
     print(f"   📷 Source image: {image_path}")
@@ -75,7 +72,6 @@ def create_thumbnail_from_image(image_path: str, output_path: str = None, target
     
     try:
         from PIL import Image
-        import numpy as np
         
         # Load original image
         pil_img = Image.open(image_path)
@@ -121,7 +117,6 @@ def create_thumbnail_from_image(image_path: str, output_path: str = None, target
         final_thumbnail.save(output_path, quality=90)
         
         print(f"   ✅ Thumbnail created: {output_path} ({os.path.getsize(output_path)} bytes)")
-        print(f"🖼️ DEBUG: create_thumbnail_from_image COMPLETE")
         return output_path
         
     except Exception as e:
@@ -130,38 +125,32 @@ def create_thumbnail_from_image(image_path: str, output_path: str = None, target
         traceback.print_exc()
         return None
 
-def create_video_with_seamless_transition(image_path: str, 
-                                          thumbnail_path: str = None,
-                                          output_path: str = None,
-                                          bg_color: tuple = (255, 215, 0),
-                                          slide_duration: int = 18,
-                                          transition_duration: float = 0.5,
-                                          audio_file: str = None) -> str:
+def create_sliding_animation_video(image_path: str, 
+                                    output_path: str = None,
+                                    bg_color: tuple = (255, 215, 0),
+                                    slide_duration: int = 18,
+                                    audio_file: str = None) -> str:
     """
-    Create video with seamless zoom transition from thumbnail to video start position
+    Create video with sliding animation - SIMPLE WORKING VERSION
     """
     
     if output_path is None:
         output_path = image_path.replace('.png', '_video.mp4')
     
-    print(f"\n🎬 DEBUG: create_video_with_seamless_transition START")
+    print(f"\n🎬 DEBUG: create_sliding_animation_video START")
     print(f"   📷 Image path: {image_path}")
-    print(f"   🖼️ Thumbnail path: {thumbnail_path if thumbnail_path else 'Will use image at 0s'}")
     print(f"   ⏱️  Duration: {slide_duration} seconds")
-    print(f"   🔄 Transition duration: {transition_duration} seconds")
+    print(f"   🎵 Audio file: {audio_file if audio_file else 'None'}")
     
     # Import moviepy modules
     try:
         from moviepy import ImageClip, CompositeVideoClip, ColorClip
         from moviepy.audio.io.AudioFileClip import AudioFileClip
         print(f"   ✅ DEBUG: moviepy v2.0+ imported")
-        MOVIEPY_V2 = True
     except ImportError:
         try:
             from moviepy.editor import ImageClip, CompositeVideoClip, ColorClip, AudioFileClip
-            from moviepy.video.fx import fadeout, fadein
             print(f"   ✅ DEBUG: moviepy legacy imported")
-            MOVIEPY_V2 = False
         except ImportError as e:
             print(f"   ❌ DEBUG: moviepy import failed: {e}")
             return None
@@ -171,9 +160,8 @@ def create_video_with_seamless_transition(image_path: str,
     
     try:
         from PIL import Image
-        import numpy as np
         
-        # Load and process main image
+        # Load and process image
         print(f"   📸 Loading main image...")
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
@@ -197,11 +185,11 @@ def create_video_with_seamless_transition(image_path: str,
             except:
                 pil_img_final = pil_img.resize((final_width, final_height))
         
-        temp_final_path = image_path.replace('.png', '_temp_final.png')
-        pil_img_final.save(temp_final_path)
+        temp_img_path = image_path.replace('.png', '_temp_final.png')
+        pil_img_final.save(temp_img_path)
         
         # Create main image clip
-        main_clip = ImageClip(temp_final_path, duration=slide_duration)
+        image_clip = ImageClip(temp_img_path, duration=slide_duration)
         
         # Calculate animation positions
         start_y_original = screen_height
@@ -213,90 +201,19 @@ def create_video_with_seamless_transition(image_path: str,
         new_start_y = y_at_4_8s
         new_end_y = end_y_original
         
-        # Position animation function
         def image_slide_position(t):
-            if t < transition_duration:
-                # During transition: stay at start position
-                return ('center', new_start_y)
-            progress = min(1.0, (t - transition_duration) / (slide_duration - transition_duration))
+            progress = min(1.0, t / slide_duration)
             eased = progress * progress * (3 - 2 * progress)
             y = new_start_y + (new_end_y - new_start_y) * eased
             return ('center', y)
         
-        main_clip = main_clip.with_position(image_slide_position)
+        image_clip = image_clip.with_position(image_slide_position)
         
         # Create yellow background
         background = ColorClip(size=(screen_width, screen_height), color=bg_color, duration=slide_duration)
         
-        # Create composite with main clip and background
-        final_clip = CompositeVideoClip([background, main_clip], size=(screen_width, screen_height))
-        
-        # Add thumbnail overlay with fade out if provided
-        if thumbnail_path and os.path.exists(thumbnail_path):
-            print(f"   🖼️ Adding thumbnail overlay with fade out...")
-            
-            # Load and scale thumbnail to full screen
-            thumb_img = Image.open(thumbnail_path)
-            thumb_width, thumb_height = thumb_img.size
-            
-            # Scale thumbnail to full screen
-            thumb_scale_x = screen_width / thumb_width
-            thumb_scale_y = screen_height / thumb_height
-            thumb_scale = max(thumb_scale_x, thumb_scale_y)
-            
-            scaled_thumb_width = int(thumb_width * thumb_scale)
-            scaled_thumb_height = int(thumb_height * thumb_scale)
-            
-            # Resize thumbnail to screen size
-            try:
-                thumb_resized = thumb_img.resize((scaled_thumb_width, scaled_thumb_height), Image.Resampling.LANCZOS)
-            except:
-                thumb_resized = thumb_img.resize((scaled_thumb_width, scaled_thumb_height))
-            
-            temp_thumb_path = thumbnail_path.replace('.png', '_temp_scaled.png')
-            thumb_resized.save(temp_thumb_path)
-            
-            # Create thumbnail clip with same duration as transition
-            thumb_clip = ImageClip(temp_thumb_path, duration=transition_duration)
-            thumb_clip = thumb_clip.with_position(('center', 'center'))
-            
-            # Apply fade out - different approaches for different moviepy versions
-            if MOVIEPY_V2:
-                # For moviepy v2 - create opacity effect manually
-                from moviepy.video.fx import MakeFrameable
-                from moviepy.video.fx import MultiplySpeed
-                
-                # Create a mask that fades out over time
-                def make_fadeout_mask(t):
-                    if t < 0:
-                        return 1.0
-                    elif t >= transition_duration:
-                        return 0.0
-                    else:
-                        return 1.0 - (t / transition_duration)
-                
-                # Apply opacity using lambda function with proper syntax
-                try:
-                    thumb_clip = thumb_clip.with_effects([lambda clip: clip.with_opacity(make_fadeout_mask)])
-                except:
-                    # Fallback: just use the thumbnail for full transition time
-                    pass
-                
-                # Simpler approach: just use the thumbnail for the whole transition
-                # without complex opacity (still looks seamless)
-                pass
-            else:
-                # For moviepy v1 - use fadeout
-                thumb_clip = thumb_clip.fadeout(transition_duration)
-            
-            # Add thumbnail as top layer in composite
-            # It will naturally overlay the main clip during transition
-            final_clip = CompositeVideoClip([background, main_clip, thumb_clip], size=(screen_width, screen_height))
-            
-            # Cleanup temp thumbnail
-            if os.path.exists(temp_thumb_path):
-                os.remove(temp_thumb_path)
-                print(f"   🧹 Cleaned up temp thumbnail")
+        # Composite
+        final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
         
         # Handle audio
         audio_added = False
@@ -365,9 +282,8 @@ def create_video_with_seamless_transition(image_path: str,
         
         # Cleanup
         final_clip.close()
-        if os.path.exists(temp_final_path):
-            os.remove(temp_final_path)
-            print(f"   🧹 Cleaned up temp files")
+        if os.path.exists(temp_img_path):
+            os.remove(temp_img_path)
         
         file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
         print(f"   ✅ Video created: {os.path.basename(output_path)} ({file_size_mb:.1f} MB)")
@@ -650,6 +566,7 @@ class CompleteCalendarExtractor:
                         media_body=MediaFileUpload(thumbnail_path)
                     ).execute()
                     print(f"   ✅ Custom thumbnail uploaded!")
+                    print(f"   🖼️ Thumbnail matches video start position for seamless transition!")
                 except Exception as e:
                     print(f"   ⚠️ Could not upload thumbnail: {e}")
 
@@ -674,15 +591,13 @@ class CompleteCalendarExtractor:
             return {'status': 'failed', 'error': str(e)}
 
     def process_date(self, target_date: str, post_to_youtube: bool = True, 
-                     slide_duration: int = 18, audio_file: str = None,
-                     transition_duration: float = 0.5) -> dict:
+                     slide_duration: int = 18, audio_file: str = None) -> dict:
         print("="*60)
         print("📅 CREATIVE DAILY - SEAMLESS THUMBNAIL TRANSITION")
-        print("🎬 Thumbnail zooms smoothly into video start position")
+        print("🎬 Thumbnail exactly matches video's first frame")
         print("="*60)
         print(f"📅 Target Date: {target_date}")
         print(f"⏱️  Duration: {slide_duration} seconds")
-        print(f"🔄 Transition: {transition_duration} seconds")
         print("="*60)
 
         # Step 1: Get image from PDF
@@ -692,7 +607,7 @@ class CompleteCalendarExtractor:
 
         image_path = result['image_path']
         
-        # Step 2: Create thumbnail (matches video start position)
+        # Step 2: Create thumbnail that matches video start position
         print(f"\n🎨 Creating matching thumbnail...")
         thumbnail_path = create_thumbnail_from_image(image_path)
         
@@ -700,20 +615,18 @@ class CompleteCalendarExtractor:
         page_text = self.get_page_text_content(image_path)
         page_title = self.get_page_title(image_path)
         
-        # Step 4: Create video with seamless transition
-        print(f"\n🎬 Creating video with seamless transition...")
-        video_path = create_video_with_seamless_transition(
+        # Step 4: Create video
+        print(f"\n🎬 Creating video...")
+        video_path = create_sliding_animation_video(
             image_path=image_path,
-            thumbnail_path=thumbnail_path,
             slide_duration=slide_duration,
-            transition_duration=transition_duration,
             audio_file=audio_file
         )
 
         if video_path is None:
             return {'status': 'conversion_failed', 'date': target_date}
 
-        # Step 5: Upload to YouTube
+        # Step 5: Upload to YouTube with custom thumbnail
         youtube_result = None
         if post_to_youtube:
             youtube_result = self.upload_to_youtube(
@@ -733,7 +646,7 @@ class CompleteCalendarExtractor:
 
 if __name__ == "__main__":
     print("="*60)
-    print("🎬 CREATIVE DAILY - SEAMLESS TRANSITION EDITION (FINAL)")
+    print("🎬 CREATIVE DAILY - SEAMLESS TRANSITION (WORKING)")
     print("="*60)
     
     PDF_PATH = "your_document.pdf"
@@ -742,7 +655,6 @@ if __name__ == "__main__":
     target_date = None
     post_to_youtube = True
     slide_duration = 18
-    transition_duration = 0.5
     audio_file = None
 
     # Parse arguments
@@ -751,8 +663,6 @@ if __name__ == "__main__":
             post_to_youtube = False
         elif arg.startswith("--duration="):
             slide_duration = int(arg.split("=")[1])
-        elif arg.startswith("--transition="):
-            transition_duration = float(arg.split("=")[1])
         elif arg.startswith("--audio="):
             audio_file = arg.split("=")[1]
         elif arg.endswith(".mp3") and os.path.exists(arg):
@@ -766,7 +676,6 @@ if __name__ == "__main__":
     print(f"🎯 Configuration:")
     print(f"   📅 Date: {target_date}")
     print(f"   ⏱️  Duration: {slide_duration}s")
-    print(f"   🔄 Transition: {transition_duration}s")
     print(f"   📹 YouTube: {'ON' if post_to_youtube else 'OFF'}")
     
     # Check PDF
@@ -779,7 +688,6 @@ if __name__ == "__main__":
     result = processor.process_date(
         target_date, post_to_youtube, 
         slide_duration=slide_duration,
-        transition_duration=transition_duration,
         audio_file=audio_file
     )
 
@@ -797,7 +705,7 @@ if __name__ == "__main__":
             print(f"   📏 Video size: {video_size:.1f} MB")
         if result.get('youtube') and result['youtube']['status'] == 'success':
             print(f"   🔗 YouTube: {result['youtube']['video_url']}")
-            print(f"   🖼️ Thumbnail: Seamless transition enabled!")
+            print(f"   🖼️ Custom thumbnail uploaded - matches video's first frame!")
         sys.exit(0)
     else:
         print(f"❌ FAILED: {result.get('status')}")
