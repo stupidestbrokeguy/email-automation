@@ -2,21 +2,15 @@ name: Daily Creative Daily YouTube Upload
 
 on:
   schedule:
-    # Runs every day at 6:00 AM UTC (10:00 AM Dubai time)
     - cron: '0 6 * * *'
-  
-  # Manual trigger from GitHub UI
   workflow_dispatch:
-  
-  # Runs when you push to main (for testing)
   push:
-    branches: [ master ]
+    branches: [ main, master ]
 
 jobs:
   send-creativedaily:
     runs-on: ubuntu-latest
     
-    # Give write permission to push progress
     permissions:
       contents: write
     
@@ -37,7 +31,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install PyMuPDF moviepy google-api-python-client google-auth-oauthlib google-auth-httplib2 pillow numpy
     
-    - name: Install FFmpeg (required for moviepy)
+    - name: Install FFmpeg
       run: |
         sudo apt-get update
         sudo apt-get install -y ffmpeg
@@ -46,7 +40,6 @@ jobs:
       run: |
         echo '${{ secrets.YOUTUBE_CLIENT_SECRETS }}' > client_secrets.json
         echo "✅ client_secrets.json created"
-        ls -la client_secrets.json
     
     - name: Decode token from secret
       run: |
@@ -54,35 +47,17 @@ jobs:
         echo "✅ token.pickle restored"
         ls -la token.pickle
     
-    - name: Decode PDF from secret
-      env:
-        PDF_BASE64: ${{ secrets.CREATIVE_DAILY_PDF }}
+    - name: Verify PDF exists
       run: |
-        echo "$PDF_BASE64" | base64 -d > your_document.pdf
-        echo "✅ PDF saved"
         ls -la your_document.pdf
-    
-    - name: List files for debugging
-      run: |
-        echo "📁 Current directory contents:"
-        ls -la
-        echo ""
-        echo "📁 Extracted date pages (if any):"
-        ls -la extracted_date_pages/ 2>/dev/null || echo "No extracted pages yet"
+        if [ ! -s your_document.pdf ]; then
+          echo "❌ PDF file is empty!"
+          exit 1
+        fi
+        echo "✅ PDF file is valid"
     
     - name: Run Creative Daily script
       run: |
-        # Get today's date in YYYY-MM-DD format
         TODAY=$(date +'%Y-%m-%d')
         echo "📅 Processing date: $TODAY"
         python check.py $TODAY
-      env:
-        PYTHONUNBUFFERED: 1
-    
-    - name: Upload extracted pages as artifact (for debugging)
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: extracted_date_pages
-        path: extracted_date_pages/
-        retention-days: 7
