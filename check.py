@@ -59,7 +59,7 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
                                     audio_file: str = None) -> str:
     """
     Create video with image sliding up - NO TEXT OVERLAY (text is on the image)
-    This avoids MoviePy v2.0+ compositing issues
+    FIXED: removed 'verbose' argument for MoviePy v2.0+
     """
     
     if output_path is None:
@@ -145,7 +145,7 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
                                 color=bg_color,
                                 duration=slide_duration)
         
-        # Composite (just background + image - no text overlay to avoid errors)
+        # Composite (just background + image - no text overlay)
         final_clip = CompositeVideoClip([background, image_clip],
                                          size=(screen_width, screen_height))
         
@@ -200,21 +200,34 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
         if not audio_added:
             print(f"   ℹ️ No audio - video will be silent")
         
-        # Write video
+        # =========================================================
+        # WRITE VIDEO - FIXED for v2.0+ (no 'verbose' argument)
+        # =========================================================
         print(f"   💾 Rendering video...")
         
         audio_codec = 'aac' if audio_added else None
         
-        final_clip.write_videofile(
-            output_path,
-            codec='libx264',
-            audio_codec=audio_codec,
-            fps=30,
-            bitrate="5000k",
-            preset='medium',
-            logger=None,
-            verbose=False
-        )
+        try:
+            # Try without verbose (v2.0+)
+            final_clip.write_videofile(
+                output_path,
+                codec='libx264',
+                audio_codec=audio_codec,
+                fps=30,
+                bitrate="5000k",
+                preset='medium',
+                logger=None
+            )
+        except TypeError:
+            # Fallback to legacy parameters
+            final_clip.write_videofile(
+                output_path,
+                codec='libx264',
+                audio_codec=audio_codec,
+                fps=30,
+                bitrate="5000k",
+                preset='medium'
+            )
         
         # Cleanup
         final_clip.close()
