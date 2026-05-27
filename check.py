@@ -1,5 +1,5 @@
 """
-Creative Daily - Complete with Full Debug
+Creative Daily - Complete with Full Debug & Thumbnail Support
 Extracts from PDF, creates sliding animation video, uploads to YouTube
 FEATURES:
 - Full debug output for every step
@@ -7,6 +7,7 @@ FEATURES:
 - Yellow background
 - Background music support
 - GitHub artifact upload
+- AUTO THUMBNAIL from image content (no yellow background)
 """
 
 import os
@@ -58,6 +59,201 @@ def detect_page_title(page_text: str) -> str:
     
     print(f"   🔍 DEBUG: No title found, using default")
     return "Creative Daily"
+
+def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 0.0) -> str:
+    """
+    Extract thumbnail from video - cropping to JUST the image content (no yellow background)
+    
+    At 0 seconds, the image is positioned starting from bottom center.
+    This function extracts just the image region, removing the yellow background.
+    
+    Args:
+        video_path: Path to video file
+        output_path: Where to save thumbnail (auto-generated if None)
+        time_seconds: Time in seconds to capture frame (default 0.0 = first frame)
+    
+    Returns:
+        Path to saved thumbnail image (image-only, cropped)
+    """
+    print(f"\n🎬 DEBUG: extract_thumbnail_from_video START")
+    print(f"   📹 Video: {video_path}")
+    print(f"   ⏱️  Time: {time_seconds} seconds")
+    
+    if output_path is None:
+        output_path = video_path.replace('.mp4', '_thumbnail.png')
+    
+    try:
+        # Try using moviepy first
+        from moviepy import VideoFileClip
+        print(f"   ✅ Using moviepy for thumbnail extraction")
+        
+        clip = VideoFileClip(video_path)
+        frame = clip.get_frame(time_seconds)
+        clip.close()
+        
+        from PIL import Image
+        import numpy as np
+        
+        # Convert frame to PIL Image
+        img = Image.fromarray(frame.astype('uint8'), 'RGB')
+        
+        print(f"   📸 Original frame size: {img.size}")
+        
+        # Detect and crop out the yellow background
+        # The yellow background is RGB (255, 215, 0)
+        # We'll find where the image content starts and ends
+        
+        # Convert to numpy array for analysis
+        img_array = np.array(img)
+        
+        # Define yellow color range (with some tolerance)
+        yellow_lower = np.array([240, 200, 0])   # Lower bound for yellow
+        yellow_upper = np.array([255, 230, 50])  # Upper bound for yellow
+        
+        # Find non-yellow pixels (these are the image content)
+        is_not_yellow = np.any((img_array < yellow_lower) | (img_array > yellow_upper), axis=2)
+        
+        # Find bounding box of non-yellow pixels
+        non_yellow_coords = np.argwhere(is_not_yellow)
+        
+        if len(non_yellow_coords) > 0:
+            y_min = non_yellow_coords[:, 0].min()
+            y_max = non_yellow_coords[:, 0].max()
+            x_min = non_yellow_coords[:, 1].min()
+            x_max = non_yellow_coords[:, 1].max()
+            
+            # Add small padding (optional)
+            padding = 5
+            y_min = max(0, y_min - padding)
+            y_max = min(img.height, y_max + padding)
+            x_min = max(0, x_min - padding)
+            x_max = min(img.width, x_max + padding)
+            
+            # Crop to just the image content
+            cropped_img = img.crop((x_min, y_min, x_max, y_max))
+            print(f"   ✂️ Cropped to: {cropped_img.size} (removed yellow background)")
+            
+            cropped_img.save(output_path, quality=90)
+        else:
+            # Fallback: save full frame if detection fails
+            print(f"   ⚠️ Could not detect image content, saving full frame")
+            img.save(output_path, quality=90)
+        
+        print(f"   ✅ Thumbnail saved: {output_path} ({os.path.getsize(output_path)} bytes)")
+        
+    except ImportError:
+        try:
+            # Fallback to OpenCV
+            import cv2
+            print(f"   ✅ Using OpenCV for thumbnail extraction")
+            
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                raise Exception("Cannot open video")
+            
+            # Set frame position
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            frame_num = int(time_seconds * fps)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+            
+            ret, frame = cap.read()
+            if ret:
+                # Convert BGR to RGB
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                img = Image.fromarray(frame_rgb)
+                
+                # Same cropping logic as above
+                img_array = np.array(img)
+                yellow_lower = np.array([240, 200, 0])
+                yellow_upper = np.array([255, 230, 50])
+                is_not_yellow = np.any((img_array < yellow_lower) | (img_array > yellow_upper), axis=2)
+                non_yellow_coords = np.argwhere(is_not_yellow)
+                
+                if len(non_yellow_coords) > 0:
+                    y_min = non_yellow_coords[:, 0].min()
+                    y_max = non_yellow_coords[:, 0].max()
+                    x_min = non_yellow_coords[:, 1].min()
+                    x_max = non_yellow_coords[:, 1].max()
+                    
+                    padding = 5
+                    y_min = max(0, y_min - padding)
+                    y_max = min(img.height, y_max + padding)
+                    x_min = max(0, x_min - padding)
+                    x_max = min(img.width, x_max + padding)
+                    
+                    cropped_img = img.crop((x_min, y_min, x_max, y_max))
+                    cropped_img.save(output_path, quality=90)
+                else:
+                    cv2.imwrite(output_path, frame)
+                
+                print(f"   ✅ Thumbnail saved: {output_path}")
+            else:
+                raise Exception("Cannot read frame")
+            
+            cap.release()
+            
+        except ImportError:
+            # Fallback to ffmpeg with cropping
+            print(f"   ✅ Using ffmpeg for thumbnail extraction")
+            import subprocess
+            
+            # First extract frame
+            temp_frame = output_path.replace('.png', '_temp_frame.png')
+            cmd_extract = [
+                'ffmpeg', '-y',
+                '-ss', str(time_seconds),
+                '-i', video_path,
+                '-vframes', '1',
+                '-q:v', '2',
+                temp_frame
+            ]
+            
+            result = subprocess.run(cmd_extract, capture_output=True, text=True)
+            if result.returncode == 0:
+                # Now crop using PIL
+                from PIL import Image
+                import numpy as np
+                
+                img = Image.open(temp_frame)
+                img_array = np.array(img)
+                yellow_lower = np.array([240, 200, 0])
+                yellow_upper = np.array([255, 230, 50])
+                is_not_yellow = np.any((img_array < yellow_lower) | (img_array > yellow_upper), axis=2)
+                non_yellow_coords = np.argwhere(is_not_yellow)
+                
+                if len(non_yellow_coords) > 0:
+                    y_min = non_yellow_coords[:, 0].min()
+                    y_max = non_yellow_coords[:, 0].max()
+                    x_min = non_yellow_coords[:, 1].min()
+                    x_max = non_yellow_coords[:, 1].max()
+                    
+                    padding = 5
+                    y_min = max(0, y_min - padding)
+                    y_max = min(img.height, y_max + padding)
+                    x_min = max(0, x_min - padding)
+                    x_max = min(img.width, x_max + padding)
+                    
+                    cropped_img = img.crop((x_min, y_min, x_max, y_max))
+                    cropped_img.save(output_path, quality=90)
+                else:
+                    img.save(output_path, quality=90)
+                
+                # Cleanup
+                if os.path.exists(temp_frame):
+                    os.remove(temp_frame)
+                
+                print(f"   ✅ Thumbnail saved: {output_path}")
+            else:
+                raise Exception(f"ffmpeg error: {result.stderr}")
+    
+    if os.path.exists(output_path):
+        file_size = os.path.getsize(output_path) / 1024
+        print(f"   📁 Thumbnail size: {file_size:.1f} KB")
+        print(f"🎬 DEBUG: extract_thumbnail_from_video COMPLETE")
+        return output_path
+    else:
+        print(f"   ❌ Failed to extract thumbnail")
+        return None
 
 def create_sliding_animation_video(image_path: str, text_content: str = None,
                                     output_path: str = None,
@@ -180,7 +376,6 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
         # =========================================================
         
         audio_added = False
-        audio_error = None
         
         def add_audio_to_clip(clip, audio_path, volume=0.25):
             try:
@@ -260,10 +455,6 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
         
         if not audio_added:
             print(f"   ℹ️ DEBUG: No audio added - video will be silent")
-            print(f"   💡 DEBUG: To add audio:")
-            print(f"      1. Place an MP3 file in the same folder")
-            print(f"      2. Name it 'background_music.mp3'")
-            print(f"      3. Or use: python check.py --audio=your_music.mp3")
         
         # Write video
         print(f"   💾 DEBUG: Starting video rendering...")
@@ -281,7 +472,7 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
                 preset='medium',
                 logger=None
             )
-            print(f"   ✅ DEBUG: write_videofile succeeded (without verbose)")
+            print(f"   ✅ DEBUG: write_videofile succeeded")
         except TypeError as e:
             print(f"   ⚠️ DEBUG: First write attempt failed: {e}")
             final_clip.write_videofile(
@@ -567,6 +758,10 @@ class CompleteCalendarExtractor:
             if self.playlist_id is None:
                 self.playlist_id = self.create_or_get_playlist(youtube)
 
+            # EXTRACT THUMBNAIL FROM VIDEO (at 0 seconds, cropping out yellow background)
+            print(f"\n   🖼️ DEBUG: Extracting thumbnail from video...")
+            thumbnail_path = extract_thumbnail_from_video(video_path, time_seconds=0.0)
+            
             body = {
                 'snippet': {
                     'title': full_title[:100],
@@ -581,11 +776,34 @@ class CompleteCalendarExtractor:
             media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
             print(f"   ⬆️ DEBUG: Uploading video...")
             
-            request = youtube.videos().insert(part=','.join(body.keys()), body=body, media_body=media)
+            request = youtube.videos().insert(
+                part=','.join(body.keys()), 
+                body=body, 
+                media_body=media
+            )
             response = request.execute()
             video_url = f"https://youtu.be/{response['id']}"
             print(f"   ✅ DEBUG: Upload successful! Video ID: {response['id']}")
             print(f"   📹 DEBUG: URL: {video_url}")
+
+            # UPLOAD CUSTOM THUMBNAIL if we extracted one
+            if thumbnail_path and os.path.exists(thumbnail_path):
+                try:
+                    print(f"   🖼️ DEBUG: Uploading custom thumbnail...")
+                    youtube.thumbnails().set(
+                        videoId=response['id'],
+                        media_body=MediaFileUpload(thumbnail_path)
+                    ).execute()
+                    print(f"   ✅ DEBUG: Custom thumbnail uploaded successfully!")
+                    
+                    # Clean up thumbnail file
+                    os.remove(thumbnail_path)
+                    print(f"   🧹 DEBUG: Removed temporary thumbnail file")
+                except Exception as e:
+                    print(f"   ⚠️ DEBUG: Could not upload custom thumbnail: {e}")
+                    print(f"   💡 Note: YouTube requires channel verification for custom thumbnails")
+            else:
+                print(f"   ℹ️ DEBUG: No thumbnail to upload (extraction failed)")
 
             # Add to playlist
             print(f"   📁 DEBUG: Adding to playlist {self.playlist_id}...")
@@ -613,8 +831,8 @@ class CompleteCalendarExtractor:
     def process_date(self, target_date: str, post_to_youtube: bool = True, 
                      slide_duration: int = 18, audio_file: str = None) -> dict:
         print("="*60)
-        print("📅 CREATIVE DAILY - SIMPLIFIED VIDEO GENERATOR (DEBUG MODE)")
-        print("🎬 60% zoom | Yellow background | Text from image")
+        print("📅 CREATIVE DAILY - COMPLETE WITH THUMBNAIL SUPPORT")
+        print("🎬 60% zoom | Yellow background | Auto thumbnail (image only)")
         print("="*60)
         print(f"📅 Target Date: {target_date}")
         print(f"⏱️  Duration: {slide_duration} seconds")
@@ -754,6 +972,7 @@ if __name__ == "__main__":
             print(f"\n📹 POSTED TO YOUTUBE!")
             print(f"   🔗 URL: {result['youtube']['video_url']}")
             print(f"   📁 Playlist: {PLAYLIST_TITLE}")
+            print(f"   🖼️ Thumbnail: Auto-extracted from image content (no yellow background)")
         elif result.get('youtube') and result['youtube']['status'] == 'failed':
             print(f"\n❌ YouTube upload failed: {result['youtube'].get('error', 'Unknown')}")
         else:
