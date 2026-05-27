@@ -500,16 +500,18 @@ class CompleteCalendarExtractor:
         else:
             main_title = f"Creative Daily | {formatted_date} | Stupid Orange | Stupidest Broke Guy"
 
-        full_title = f"{main_title} | {formatted_date} | Stupid Orange | Stupidest Broke Guy | #creativedaily #stupidestbrokeguy #UAE #Dubai"
+        full_title = f"{main_title} | {formatted_date} | Creative Daily | Stupid Orange | Stupidest Broke Guy | #creativedaily #stupidestbrokeguy #UAE #Dubai"
         print(f"   📝 Title: {full_title[:80]}...")
 
         video_description = f"""{page_text[:4500] if page_text else ''}
+        
+- Help someone collect their first royalty from creativity : join Stupid Solomon Fashion Line Waiting List Here - | www.stupidorange.com |
+- Secure a copy of the latest Creative Daily and get daily messages that will fasttrack you to collecting your first royalty Here = | creativedaily.stupidorange.com |
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✨ Creative Daily | {formatted_date} | Stupid Orange | Stupidest Broke Guy
+✨{main_title} |  {formatted_date} | Creative Daily | Stupid Orange | Stupidest Broke Guy
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
- #creativedaily #stupidestbrokeguy #UAE #Dubai
+ #creativedaily #creativedaily #stupidestbrokeguy #UAE #Dubai #fyp #
 """
         print(f"   📝 Description length: {len(video_description)} chars")
 
