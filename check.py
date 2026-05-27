@@ -500,7 +500,7 @@ class CompleteCalendarExtractor:
         else:
             main_title = f"Creative Daily | {formatted_date} | Stupid Orange | Stupidest Broke Guy"
 
-        full_title = f"{main_title} |  #creativedaily #stupidestbrokeguy #UAE #Dubai"
+        full_title = f"{main_title} | {formatted_date} | Stupid Orange | Stupidest Broke Guy | #creativedaily #stupidestbrokeguy #UAE #Dubai"
         print(f"   📝 Title: {full_title[:80]}...")
 
         video_description = f"""{page_text[:4500] if page_text else ''}
