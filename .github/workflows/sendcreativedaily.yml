@@ -2,7 +2,7 @@ name: Daily Creative Daily YouTube Upload
 
 on:
   schedule:
-    # Runs every day at 6:00 AM UTC (10:00 AM Dubai time - UTC+4)
+    # Runs every day at 6:00 AM UTC (10:00 AM Dubai time)
     - cron: '0 6 * * *'
   
   # Manual trigger from GitHub UI
@@ -10,7 +10,7 @@ on:
   
   # Runs when you push to main (for testing)
   push:
-    branches: [ main, master ]
+    branches: [ master ]
 
 jobs:
   send-creativedaily:
@@ -35,7 +35,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install PyMuPDF moviepy google-api-python-client google-auth-oauthlib google-auth-httplib2 pillow
+        pip install PyMuPDF moviepy google-api-python-client google-auth-oauthlib google-auth-httplib2 pillow numpy
     
     - name: Install FFmpeg (required for moviepy)
       run: |
@@ -46,20 +46,43 @@ jobs:
       run: |
         echo '${{ secrets.YOUTUBE_CLIENT_SECRETS }}' > client_secrets.json
         echo "✅ client_secrets.json created"
+        ls -la client_secrets.json
+    
+    - name: Decode token from secret
+      run: |
+        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > token.pickle
+        echo "✅ token.pickle restored"
+        ls -la token.pickle
+    
+    - name: Decode PDF from secret
+      env:
+        PDF_BASE64: ${{ secrets.CREATIVE_DAILY_PDF }}
+      run: |
+        echo "$PDF_BASE64" | base64 -d > your_document.pdf
+        echo "✅ PDF saved"
+        ls -la your_document.pdf
     
     - name: List files for debugging
       run: |
-        ls -la
         echo "📁 Current directory contents:"
         ls -la
+        echo ""
+        echo "📁 Extracted date pages (if any):"
+        ls -la extracted_date_pages/ 2>/dev/null || echo "No extracted pages yet"
     
-    - name: Send daily creative daily
-      env:
-        YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
-        TARGET_DATE: ${{ github.event.schedule && 'today' || inputs.date }}
+    - name: Run Creative Daily script
       run: |
         # Get today's date in YYYY-MM-DD format
         TODAY=$(date +'%Y-%m-%d')
         echo "📅 Processing date: $TODAY"
-        # python check.py $TODAY
-        python check.py 2026-06-10
+        python check.py $TODAY
+      env:
+        PYTHONUNBUFFERED: 1
+    
+    - name: Upload extracted pages as artifact (for debugging)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: extracted_date_pages
+        path: extracted_date_pages/
+        retention-days: 7
