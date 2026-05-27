@@ -1,17 +1,16 @@
 """
-Complete Calendar Date Extractor & YouTube Poster
-Creates SLIDING ANIMATION video, uploads to YouTube with PLAYLIST
-Detects PAGE TITLE from structured format
-FIXED: No Arial font dependency - works on GitHub Actions
+Creative Daily - Complete Working Script
+Extracts from PDF, creates sliding animation video, uploads to YouTube
+Works with token.pickle OR service account
 """
 
 import os
 import re
 import sys
-from datetime import datetime
-import fitz  # PyMuPDF
 import pickle
 import socket
+from datetime import datetime
+import fitz  # PyMuPDF
 
 # ========== CONFIGURATION ==========
 PLAYLIST_TITLE = "Creative Daily | Stupid Orange | Stupidest Broke Guy"
@@ -32,33 +31,20 @@ def find_free_port(start_port=8080, end_port=8090):
     return 8080
 
 def detect_page_title(page_text: str) -> str:
-    """
-    Detect the main title from page text.
-    Structure is always:
-    1. Date
-    2. "Stupid Orange"
-    3. "Creative Daily"
-    4. TITLE (this is what we want)
-    """
+    """Detect title from page structure (Date, Stupid Orange, Creative Daily, TITLE)"""
     lines = page_text.split('\n')
-
-    # Clean lines
     clean_lines = []
     for line in lines:
         line = line.strip()
         if line and not line.isdigit() and not re.search(r'Page\s+\d+', line):
             clean_lines.append(line)
-
-    # Look for the title after "Creative Daily"
+    
     found_creative_daily = False
-    for i, line in enumerate(clean_lines):
-        if found_creative_daily:
-            if line and len(line) > 2 and not line.startswith('#'):
-                return line
+    for line in clean_lines:
+        if found_creative_daily and line and len(line) > 2 and not line.startswith('#'):
+            return line
         if "Creative Daily" in line or "creative daily" in line.lower():
             found_creative_daily = True
-            continue
-
     return "Creative Daily"
 
 def create_sliding_animation_video(image_path: str, text_content: str,
@@ -66,17 +52,15 @@ def create_sliding_animation_video(image_path: str, text_content: str,
                                     bg_color: tuple = (255, 215, 0),
                                     text_color: str = "black",
                                     slide_duration: int = 18) -> str:
-    """
-    Create video with image sliding up and text scrolling like Spotify lyrics
-    FIXED: No Arial font dependency - uses default or DejaVu-Sans
-    """
+    """Create video with image sliding up and text scrolling like Spotify lyrics"""
+    
     if output_path is None:
-        output_path = image_path.replace('.png', '_sliding_video.mp4')
-
+        output_path = image_path.replace('.png', '_video.mp4')
+    
     print(f"\n🎬 Creating sliding animation video...")
     print(f"   Image: {os.path.basename(image_path)}")
     print(f"   Duration: {slide_duration} seconds")
-
+    
     # Import moviepy
     try:
         from moviepy import ImageClip, CompositeVideoClip, ColorClip, TextClip
@@ -88,24 +72,24 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         except ImportError as e:
             print(f"   ❌ moviepy import failed: {e}")
             return None
-
+    
     screen_width, screen_height = 1080, 1920
-
+    
     try:
         from PIL import Image
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
-
-        # Scale image to fit screen width
+        
+        # Scale image to fit screen
         scale = screen_width / img_width
         new_width = screen_width
         new_height = int(img_height * scale)
-
+        
         if new_height < screen_height * 0.8:
             scale = (screen_height * 0.8) / img_height
             new_width = int(img_width * scale)
             new_height = int(img_height * scale)
-
+        
         # Resize image
         try:
             pil_img_resized = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
@@ -114,27 +98,27 @@ def create_sliding_animation_video(image_path: str, text_content: str,
                 pil_img_resized = pil_img.resize((new_width, new_height), Image.LANCZOS)
             except:
                 pil_img_resized = pil_img.resize((new_width, new_height))
-
+        
         temp_img_path = image_path.replace('.png', '_temp_resized.png')
         pil_img_resized.save(temp_img_path)
-
+        
         # Image clip with slide animation (starts at bottom, moves up)
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
         start_y = screen_height
         end_y = -new_height + screen_height * 0.15
-
+        
         def image_slide_position(t):
             progress = min(1.0, t / slide_duration)
             y = start_y + (end_y - start_y) * progress
             return ('center', y)
-
+        
         image_clip = image_clip.with_position(image_slide_position)
-
+        
         # Yellow background
         background = ColorClip(size=(screen_width, screen_height),
                                 color=bg_color,
                                 duration=slide_duration)
-
+        
         # Process text for scrolling
         lines = text_content.split('\n')
         clean_lines = []
@@ -155,16 +139,14 @@ def create_sliding_animation_video(image_path: str, text_content: str,
                         clean_lines.append(current_line)
                 else:
                     clean_lines.append(line)
-
+        
         if not clean_lines:
             clean_lines = ["Creative Daily", datetime.now().strftime("%B %d, %Y")]
-
-        full_text = '\n'.join(clean_lines)
-
-        # Create scrolling text - FIXED for GitHub Actions (no Arial font)
-        text_clip = None
         
-        # Try different font options (Ubuntu runners have DejaVu-Sans)
+        full_text = '\n'.join(clean_lines)
+        
+        # Create scrolling text - try different fonts for GitHub Actions
+        text_clip = None
         font_options = ["DejaVu-Sans", "Liberation-Sans", "FreeSans", None]
         
         for font in font_options:
@@ -179,47 +161,39 @@ def create_sliding_animation_video(image_path: str, text_content: str,
                 continue
         
         if text_clip is None:
-            # Last resort - try with different parameter name
-            try:
-                text_clip = TextClip(txt=full_text, color=text_color)
-            except:
-                try:
-                    text_clip = TextClip(full_text, color=text_color)
-                except:
-                    print(f"   ⚠️ Could not create text clip - continuing without text")
-                    final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
-                    final_clip.write_videofile(output_path, codec='libx264', fps=24, logger=None)
-                    if os.path.exists(temp_img_path):
-                        os.remove(temp_img_path)
-                    return output_path
-
+            print(f"   ⚠️ Could not create text clip - continuing without text")
+            final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
+            final_clip.write_videofile(output_path, codec='libx264', fps=24, logger=None)
+            if os.path.exists(temp_img_path):
+                os.remove(temp_img_path)
+            return output_path
+        
         text_clip = text_clip.with_duration(slide_duration)
-
         text_start_y = screen_height
         text_end_y = -text_clip.size[1] - 50
-
+        
         def text_scroll_position(t):
             progress = min(1.0, t / slide_duration)
             y = text_start_y + (text_end_y - text_start_y) * progress
             return ('center', y)
-
+        
         text_clip = text_clip.with_position(text_scroll_position)
-
+        
         # Composite all layers
         final_clip = CompositeVideoClip([background, image_clip, text_clip],
                                          size=(screen_width, screen_height))
-
+        
         # Write video
         final_clip.write_videofile(output_path, codec='libx264', fps=24, logger=None)
-
+        
         # Cleanup
         final_clip.close()
         if os.path.exists(temp_img_path):
             os.remove(temp_img_path)
-
+        
         print(f"   ✅ Video created: {os.path.basename(output_path)}")
         return output_path
-
+        
     except Exception as e:
         print(f"   ❌ Error: {e}")
         return None
@@ -357,6 +331,7 @@ class CompleteCalendarExtractor:
         return response['id']
 
     def upload_to_youtube(self, video_path: str, target_date: str, page_text: str = "", video_title: str = "") -> dict:
+        """Upload video to YouTube using token.pickle"""
         print(f"\n📤 Uploading to YouTube...")
 
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
@@ -390,11 +365,14 @@ class CompleteCalendarExtractor:
             TOKEN_FILE = "token.pickle"
 
             credentials = None
+
+            # Load existing token
             if os.path.exists(TOKEN_FILE):
                 with open(TOKEN_FILE, 'rb') as f:
                     credentials = pickle.load(f)
                 print("   📂 Loaded saved credentials")
 
+            # Refresh or create new token
             if not credentials or not credentials.valid:
                 if credentials and credentials.expired and credentials.refresh_token:
                     print("   🔄 Refreshing token...")
@@ -402,9 +380,15 @@ class CompleteCalendarExtractor:
                 else:
                     if not os.path.exists(CLIENT_SECRETS_FILE):
                         return {'status': 'skipped', 'error': 'No credentials'}
+
                     print("   🔐 Opening browser for auth...")
+                    free_port = find_free_port()
                     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
-                    credentials = flow.run_local_server(port=find_free_port(), open_browser=True)
+
+                    try:
+                        credentials = flow.run_local_server(port=free_port, open_browser=True)
+                    except OSError:
+                        credentials = flow.run_local_server(open_browser=True)
 
                 with open(TOKEN_FILE, 'wb') as f:
                     pickle.dump(credentials, f)
@@ -412,9 +396,11 @@ class CompleteCalendarExtractor:
 
             youtube = build('youtube', 'v3', credentials=credentials)
 
+            # Get or create playlist
             if self.playlist_id is None:
                 self.playlist_id = self.create_or_get_playlist(youtube)
 
+            # Upload video
             body = {
                 'snippet': {
                     'title': full_title[:100],
@@ -430,6 +416,7 @@ class CompleteCalendarExtractor:
             request = youtube.videos().insert(part=','.join(body.keys()), body=body, media_body=media)
             response = request.execute()
             video_url = f"https://youtu.be/{response['id']}"
+            print(f"   ✅ Uploaded: {video_url}")
 
             # Add to playlist
             youtube.playlistItems().insert(
@@ -449,18 +436,14 @@ class CompleteCalendarExtractor:
             print(f"   ❌ Upload error: {e}")
             return {'status': 'failed', 'error': str(e)}
 
-    def process_date(self, target_date: str, post_to_youtube: bool = True,
-                     dpi: int = 150, slide_duration: int = 18) -> dict:
+    def process_date(self, target_date: str, post_to_youtube: bool = True, slide_duration: int = 18) -> dict:
         print("="*60)
         print("📅 CREATIVE DAILY - SLIDING ANIMATION VIDEO")
         print("🎬 Image slides up | Text scrolls like Spotify")
         print("="*60)
         print(f"Target Date: {target_date}")
-        print(f"Output Dir: {self.output_dir}")
-        print(f"Duration: {slide_duration} seconds")
-        print("="*60)
 
-        result = self.ensure_image_for_date(target_date, dpi)
+        result = self.ensure_image_for_date(target_date)
         if result['status'] == 'not_found':
             print(f"\n❌ Date {target_date} not found")
             return {'status': 'not_found', 'date': target_date}
@@ -520,6 +503,11 @@ if __name__ == "__main__":
     print(f"⏱️  Duration: {slide_duration}s")
     print(f"📁 Playlist: {PLAYLIST_TITLE}\n")
 
+    # Check if PDF exists
+    if not os.path.exists(PDF_PATH):
+        print(f"❌ PDF not found: {PDF_PATH}")
+        sys.exit(1)
+
     processor = CompleteCalendarExtractor(PDF_PATH, OUTPUT_DIR)
     result = processor.process_date(target_date, post_to_youtube, slide_duration=slide_duration)
 
@@ -537,7 +525,8 @@ if __name__ == "__main__":
             print(f"\n📹 POSTED TO YOUTUBE!")
             print(f"   URL: {result['youtube']['video_url']}")
             print(f"   Playlist: {PLAYLIST_TITLE}")
+
         sys.exit(0)
     else:
-        print(f"❌ FAILED")
+        print(f"❌ FAILED: {result.get('status')}")
         sys.exit(1)
