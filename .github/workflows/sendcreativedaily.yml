@@ -78,7 +78,7 @@ jobs:
     - name: Run Creative Daily script
       run: |
         echo "📅 Processing date: ${{ steps.date.outputs.target_date }}"
-        python check.py ${{ steps.date.outputs.target_date }}
+        python check.py 2026-06-03
     
     - name: Upload all artifacts for this run
       uses: actions/upload-artifact@v4
