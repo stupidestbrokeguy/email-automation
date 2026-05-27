@@ -1,7 +1,7 @@
 """
 Creative Daily - Complete Working Script
 Extracts from PDF, creates sliding animation video, uploads to YouTube
-IMAGE SLIGHTLY ZOOMED (30%) + YELLOW BACKGROUND + SCROLLING TEXT
+Image starts at 4.8-second position (already visible) + 30% zoom + Yellow background
 """
 
 import os
@@ -54,7 +54,8 @@ def create_sliding_animation_video(image_path: str, text_content: str,
                                     slide_duration: int = 18) -> str:
     """
     Create video with image sliding up and text scrolling
-    Image slightly zoomed (30%) with yellow background
+    Image starts at position where it would be at 4.8 seconds in original
+    30% more zoom - Yellow background
     """
     
     if output_path is None:
@@ -83,7 +84,7 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
         
-        # Slight zoom (30% larger than fit-to-screen)
+        # Calculate zoom (30% more than fit-to-screen)
         fit_scale = min(screen_width / img_width, screen_height / img_height)
         zoom_factor = 1.3
         scale = fit_scale * zoom_factor
@@ -95,6 +96,7 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         print(f"   Fit scale: {fit_scale:.2f}, Zoom factor: {zoom_factor}")
         print(f"   Resized to: {new_width}x{new_height}")
         
+        # Resize image
         try:
             pil_img_resized = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         except AttributeError:
@@ -108,23 +110,40 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
         
-        start_y = screen_height
-        end_y = -new_height + screen_height * 0.2
+        # =========================================================
+        # Image starts at the position it would be at 4.8 seconds
+        # =========================================================
+        
+        # Original animation parameters
+        start_y_original = screen_height
+        end_y_original = -new_height + screen_height * 0.2
+        progress_at_4_8s = 4.8 / slide_duration  # 0.2667
+        # Easing function: eased = progress * progress * (3 - 2 * progress)
+        eased_at_4_8s = progress_at_4_8s * progress_at_4_8s * (3 - 2 * progress_at_4_8s)
+        y_at_4_8s = start_y_original + (end_y_original - start_y_original) * eased_at_4_8s
+        
+        print(f"   Original animation would be at Y = {y_at_4_8s:.1f} at 4.8 seconds")
+        
+        # NEW animation: Start at that Y position
+        new_start_y = y_at_4_8s
+        new_end_y = end_y_original
+        
+        print(f"   NEW animation: start Y = {new_start_y:.1f}, end Y = {new_end_y:.1f}")
         
         def image_slide_position(t):
             progress = min(1.0, t / slide_duration)
             eased = progress * progress * (3 - 2 * progress)
-            y = start_y + (end_y - start_y) * eased
+            y = new_start_y + (new_end_y - new_start_y) * eased
             return ('center', y)
         
         image_clip = image_clip.with_position(image_slide_position)
         
-        # YELLOW background
+        # Yellow background
         background = ColorClip(size=(screen_width, screen_height),
                                 color=bg_color,
                                 duration=slide_duration)
         
-        # Process text
+        # Process text for scrolling
         lines = text_content.split('\n')
         clean_lines = []
         for line in lines:
@@ -148,8 +167,10 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         if not clean_lines:
             clean_lines = ["Creative Daily", datetime.now().strftime("%B %d, %Y")]
         
+        print(f"   📝 Creating {len(clean_lines)} text lines...")
         full_text = '\n'.join(clean_lines)
         
+        # Create text clip with larger font and stroke
         text_clip = None
         font_size = 52
         font_options = ["DejaVu-Sans-Bold", "DejaVu-Sans", "Liberation-Sans", "FreeSans", None]
@@ -199,9 +220,11 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         
         text_clip = text_clip.with_position(text_scroll_position)
         
+        # Composite all layers
         final_clip = CompositeVideoClip([background, image_clip, text_clip],
                                          size=(screen_width, screen_height))
         
+        # Write video with high quality
         print(f"   💾 Writing video...")
         final_clip.write_videofile(
             output_path,
@@ -212,6 +235,7 @@ def create_sliding_animation_video(image_path: str, text_content: str,
             logger=None
         )
         
+        # Cleanup
         final_clip.close()
         if os.path.exists(temp_img_path):
             os.remove(temp_img_path)
@@ -221,6 +245,8 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         
     except Exception as e:
         print(f"   ❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -452,8 +478,8 @@ class CompleteCalendarExtractor:
 
     def process_date(self, target_date: str, post_to_youtube: bool = True, slide_duration: int = 18) -> dict:
         print("="*60)
-        print("📅 CREATIVE DAILY - YELLOW BACKGROUND VIDEO")
-        print("🎬 Image slightly zoomed | Yellow background | Text scrolls")
+        print("📅 CREATIVE DAILY - SLIDING ANIMATION VIDEO")
+        print("🎬 Image starts visible (4.8s position) | 30% zoom | Yellow background")
         print("="*60)
         print(f"Target Date: {target_date}")
 
