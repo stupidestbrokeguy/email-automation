@@ -1,12 +1,12 @@
 """
-Creative Daily - Simplified Reliable Version
+Creative Daily - Complete with Full Debug
 Extracts from PDF, creates sliding animation video, uploads to YouTube
 FEATURES:
-- 60% zoomed image for large readable text (text is ON the image)
+- Full debug output for every step
+- 60% zoomed image for large readable text
 - Yellow background
-- Background music with proper volume control
-- Image starts visible (at 4.8-second position)
-- NO text overlay (text is already on the image from PDF)
+- Background music support
+- GitHub artifact upload
 """
 
 import os
@@ -36,7 +36,8 @@ def find_free_port(start_port=8080, end_port=8090):
     return 8080
 
 def detect_page_title(page_text: str) -> str:
-    """Detect title from page structure: Date → Stupid Orange → Creative Daily → TITLE"""
+    """Detect title from page structure"""
+    print(f"   🔍 DEBUG: detect_page_title called with {len(page_text)} chars")
     lines = page_text.split('\n')
     clean_lines = []
     for line in lines:
@@ -44,12 +45,18 @@ def detect_page_title(page_text: str) -> str:
         if line and not line.isdigit() and not re.search(r'Page\s+\d+', line):
             clean_lines.append(line)
     
+    print(f"   🔍 DEBUG: Found {len(clean_lines)} clean lines")
+    
     found_creative_daily = False
-    for line in clean_lines:
+    for i, line in enumerate(clean_lines):
         if found_creative_daily and line and len(line) > 2 and not line.startswith('#'):
+            print(f"   🔍 DEBUG: Title found at line {i}: '{line}'")
             return line
         if "Creative Daily" in line or "creative daily" in line.lower():
             found_creative_daily = True
+            print(f"   🔍 DEBUG: Found 'Creative Daily' at line {i}")
+    
+    print(f"   🔍 DEBUG: No title found, using default")
     return "Creative Daily"
 
 def create_sliding_animation_video(image_path: str, text_content: str = None,
@@ -57,41 +64,44 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
                                     bg_color: tuple = (255, 215, 0),
                                     slide_duration: int = 18,
                                     audio_file: str = None) -> str:
-    """
-    Create video with image sliding up - NO TEXT OVERLAY (text is on the image)
-    FIXED: removed 'verbose' argument for MoviePy v2.0+
-    """
+    """Create video with image sliding up - FULL DEBUG"""
     
     if output_path is None:
         output_path = image_path.replace('.png', '_video.mp4')
     
-    print(f"\n🎬 Creating sliding animation video...")
-    print(f"   📷 Image: {os.path.basename(image_path)}")
+    print(f"\n🎬 DEBUG: create_sliding_animation_video START")
+    print(f"   📷 Image path: {image_path}")
+    print(f"   📁 Image exists: {os.path.exists(image_path)}")
+    print(f"   📏 Image size: {os.path.getsize(image_path) if os.path.exists(image_path) else 'N/A'} bytes")
     print(f"   ⏱️  Duration: {slide_duration} seconds")
+    print(f"   🎵 Audio file: {audio_file if audio_file else 'None'}")
+    print(f"   📁 Audio exists: {os.path.exists(audio_file) if audio_file else 'N/A'}")
     
     # Import moviepy modules with fallbacks
     try:
         from moviepy import ImageClip, CompositeVideoClip, ColorClip
         from moviepy.audio.io.AudioFileClip import AudioFileClip
-        MOVIEPY_V2 = True
-        print(f"   ✅ Using moviepy v2.0+")
+        print(f"   ✅ DEBUG: moviepy v2.0+ imported successfully")
     except ImportError:
         try:
             from moviepy.editor import ImageClip, CompositeVideoClip, ColorClip, AudioFileClip
-            MOVIEPY_V2 = False
-            print(f"   ✅ Using moviepy (legacy)")
+            print(f"   ✅ DEBUG: moviepy legacy imported successfully")
         except ImportError as e:
-            print(f"   ❌ moviepy import failed: {e}")
+            print(f"   ❌ DEBUG: moviepy import failed: {e}")
             return None
     
     screen_width, screen_height = 1920, 1080
+    print(f"   📺 DEBUG: Screen dimensions: {screen_width}x{screen_height}")
     
     try:
         from PIL import Image
+        print(f"   ✅ DEBUG: PIL imported successfully")
         
         # Load and process image
+        print(f"   📸 DEBUG: Opening image...")
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
+        print(f"   📸 DEBUG: Original image size: {img_width}x{img_height}")
         
         # 60% ZOOM for larger, readable text
         fit_scale = min(screen_width / img_width, screen_height / img_height)
@@ -101,23 +111,30 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
         new_width = int(img_width * scale)
         new_height = int(img_height * scale)
         
-        print(f"   📐 Original: {img_width}x{img_height}")
-        print(f"   🔍 Zoom: {zoom_factor}x ({(zoom_factor-1)*100:.0f}% larger)")
-        print(f"   📐 Resized: {new_width}x{new_height}")
+        print(f"   🔍 DEBUG: Fit scale: {fit_scale:.4f}")
+        print(f"   🔍 DEBUG: Zoom factor: {zoom_factor}")
+        print(f"   🔍 DEBUG: Final scale: {scale:.4f}")
+        print(f"   📐 DEBUG: Resized dimensions: {new_width}x{new_height}")
         
         # High quality resize
+        print(f"   🔄 DEBUG: Resizing image...")
         try:
             pil_img_resized = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            print(f"   ✅ DEBUG: Resized with LANCZOS (PIL 10+)")
         except AttributeError:
             try:
                 pil_img_resized = pil_img.resize((new_width, new_height), Image.LANCZOS)
+                print(f"   ✅ DEBUG: Resized with LANCZOS (PIL 9)")
             except:
                 pil_img_resized = pil_img.resize((new_width, new_height))
+                print(f"   ✅ DEBUG: Resized with default method")
         
         temp_img_path = image_path.replace('.png', '_temp_resized.png')
         pil_img_resized.save(temp_img_path)
+        print(f"   💾 DEBUG: Saved temp image: {temp_img_path}")
         
         # Create image clip with sliding animation
+        print(f"   🎬 DEBUG: Creating ImageClip...")
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
         
         # Calculate animation positions (starts visible at 4.8s position)
@@ -130,7 +147,14 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
         new_start_y = y_at_4_8s
         new_end_y = end_y_original
         
-        print(f"   📍 Start Y: {new_start_y:.1f}, End Y: {new_end_y:.1f}")
+        print(f"   📍 DEBUG: Animation calculation:")
+        print(f"      start_y_original: {start_y_original}")
+        print(f"      end_y_original: {end_y_original}")
+        print(f"      progress_at_4.8s: {progress_at_4_8s:.4f}")
+        print(f"      eased_at_4.8s: {eased_at_4_8s:.4f}")
+        print(f"      y_at_4.8s: {y_at_4_8s:.1f}")
+        print(f"      NEW start_y: {new_start_y:.1f}")
+        print(f"      NEW end_y: {new_end_y:.1f}")
         
         def image_slide_position(t):
             progress = min(1.0, t / slide_duration)
@@ -139,76 +163,115 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
             return ('center', y)
         
         image_clip = image_clip.with_position(image_slide_position)
+        print(f"   ✅ DEBUG: Position animation set")
         
         # Create yellow background
-        background = ColorClip(size=(screen_width, screen_height),
-                                color=bg_color,
-                                duration=slide_duration)
+        print(f"   🎨 DEBUG: Creating yellow background...")
+        background = ColorClip(size=(screen_width, screen_height), color=bg_color, duration=slide_duration)
+        print(f"   ✅ DEBUG: Background created")
         
-        # Composite (just background + image - no text overlay)
-        final_clip = CompositeVideoClip([background, image_clip],
-                                         size=(screen_width, screen_height))
+        # Composite
+        print(f"   🔄 DEBUG: Compositing video layers...")
+        final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
+        print(f"   ✅ DEBUG: Composite created")
         
         # =========================================================
-        # ADD BACKGROUND AUDIO
+        # IMPROVED AUDIO HANDLING WITH DEBUGGING
         # =========================================================
         
         audio_added = False
+        audio_error = None
         
-        # Function to add audio
         def add_audio_to_clip(clip, audio_path, volume=0.25):
             try:
+                print(f"   🎵 DEBUG: Loading audio: {audio_path}")
+                
+                if not os.path.exists(audio_path):
+                    print(f"   ⚠️ DEBUG: File not found: {audio_path}")
+                    return clip, False
+                
+                file_size = os.path.getsize(audio_path)
+                print(f"   📁 DEBUG: Audio file size: {file_size} bytes ({file_size/1024:.1f} KB)")
+                
                 audio = AudioFileClip(audio_path)
+                print(f"   🎵 DEBUG: Audio duration: {audio.duration:.2f}s")
                 
                 # Loop if shorter than video
                 if audio.duration < slide_duration:
                     loops = int(slide_duration / audio.duration) + 1
+                    print(f"   🔁 DEBUG: Looping audio {loops} times")
                     audio = audio.loop(loops)
                 
                 # Trim to exact duration
                 audio = audio.subclipped(0, slide_duration)
+                print(f"   ✂️ DEBUG: Trimmed audio: {audio.duration:.2f}s")
                 
                 # Adjust volume
                 try:
                     audio = audio.with_volume_scaled(volume)
+                    print(f"   🔊 DEBUG: Volume set to {volume*100}% (with_volume_scaled)")
                 except AttributeError:
                     try:
                         audio = audio.volumex(volume)
-                    except:
-                        pass
+                        print(f"   🔊 DEBUG: Volume set to {volume*100}% (volumex)")
+                    except Exception as e:
+                        print(f"   ⚠️ DEBUG: Could not adjust volume: {e}")
                 
                 return clip.with_audio(audio), True
+                
             except Exception as e:
+                print(f"   ❌ DEBUG: Audio error: {e}")
+                import traceback
+                traceback.print_exc()
                 return clip, False
         
-        # Try specified audio file
-        if audio_file and os.path.exists(audio_file):
+        # Try specified audio file first
+        if audio_file:
+            print(f"   🎵 DEBUG: Using specified audio: {audio_file}")
             final_clip, audio_added = add_audio_to_clip(final_clip, audio_file, 0.25)
-            if audio_added:
-                print(f"   🎵 Added audio: {os.path.basename(audio_file)}")
         
-        # If no audio, look for common files
+        # Try common audio files
         if not audio_added:
-            common_audio = ["background_music.mp3", "audio.mp3", "music.mp3", "bgm.mp3"]
+            common_audio = [
+                "background_music.mp3", 
+                "audio.mp3", 
+                "music.mp3", 
+                "bgm.mp3",
+                "ambient.mp3",
+                "soundtrack.mp3"
+            ]
+            
+            print(f"   🔍 DEBUG: Searching for audio files...")
+            print(f"   📁 Current directory: {os.getcwd()}")
+            
+            # List all MP3 files in directory
+            all_mp3 = [f for f in os.listdir('.') if f.endswith('.mp3')]
+            if all_mp3:
+                print(f"   📁 DEBUG: Found MP3 files: {all_mp3}")
+            else:
+                print(f"   📁 DEBUG: No MP3 files found in current directory")
+            
             for audio in common_audio:
                 if os.path.exists(audio):
+                    print(f"   🎵 DEBUG: Found audio: {audio}")
                     final_clip, audio_added = add_audio_to_clip(final_clip, audio, 0.25)
                     if audio_added:
-                        print(f"   🎵 Added audio: {audio}")
                         break
         
         if not audio_added:
-            print(f"   ℹ️ No audio - video will be silent")
+            print(f"   ℹ️ DEBUG: No audio added - video will be silent")
+            print(f"   💡 DEBUG: To add audio:")
+            print(f"      1. Place an MP3 file in the same folder")
+            print(f"      2. Name it 'background_music.mp3'")
+            print(f"      3. Or use: python check.py --audio=your_music.mp3")
         
-        # =========================================================
-        # WRITE VIDEO - FIXED for v2.0+ (no 'verbose' argument)
-        # =========================================================
-        print(f"   💾 Rendering video...")
+        # Write video
+        print(f"   💾 DEBUG: Starting video rendering...")
         
         audio_codec = 'aac' if audio_added else None
+        print(f"   🎬 DEBUG: Audio codec: {audio_codec if audio_codec else 'None'}")
         
         try:
-            # Try without verbose (v2.0+)
             final_clip.write_videofile(
                 output_path,
                 codec='libx264',
@@ -218,8 +281,9 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
                 preset='medium',
                 logger=None
             )
-        except TypeError:
-            # Fallback to legacy parameters
+            print(f"   ✅ DEBUG: write_videofile succeeded (without verbose)")
+        except TypeError as e:
+            print(f"   ⚠️ DEBUG: First write attempt failed: {e}")
             final_clip.write_videofile(
                 output_path,
                 codec='libx264',
@@ -228,18 +292,22 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
                 bitrate="5000k",
                 preset='medium'
             )
+            print(f"   ✅ DEBUG: write_videofile succeeded (legacy params)")
         
         # Cleanup
         final_clip.close()
         if os.path.exists(temp_img_path):
             os.remove(temp_img_path)
+            print(f"   🧹 DEBUG: Removed temp image: {temp_img_path}")
         
         file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
-        print(f"   ✅ Video created: {os.path.basename(output_path)} ({file_size_mb:.1f} MB)")
+        audio_status = "with audio" if audio_added else "without audio"
+        print(f"   ✅ DEBUG: Video created: {os.path.basename(output_path)} ({file_size_mb:.1f} MB, {audio_status})")
+        print(f"🎬 DEBUG: create_sliding_animation_video COMPLETE")
         return output_path
         
     except Exception as e:
-        print(f"   ❌ Error: {e}")
+        print(f"   ❌ DEBUG: Error in create_sliding_animation_video: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -255,32 +323,45 @@ class CompleteCalendarExtractor:
         ]
         os.makedirs(output_dir, exist_ok=True)
         self.playlist_id = None
+        print(f"🔧 DEBUG: CompleteCalendarExtractor initialized")
+        print(f"   📁 PDF path: {pdf_path}")
+        print(f"   📁 Output dir: {output_dir}")
 
     def extract_date_from_text(self, text: str) -> str:
+        print(f"   🔍 DEBUG: extract_date_from_text called with {len(text)} chars")
         for pattern in self.date_patterns:
             matches = re.findall(pattern, text, re.IGNORECASE)
             for match in matches:
                 try:
                     dt = datetime.strptime(match.strip(), "%d %B %Y")
-                    return dt.strftime("%Y-%m-%d")
+                    result = dt.strftime("%Y-%m-%d")
+                    print(f"   ✅ DEBUG: Date found: {result} (format: %d %B %Y)")
+                    return result
                 except:
                     try:
                         dt = datetime.strptime(match.strip(), "%B %d, %Y")
-                        return dt.strftime("%Y-%m-%d")
+                        result = dt.strftime("%Y-%m-%d")
+                        print(f"   ✅ DEBUG: Date found: {result} (format: %B %d, %Y)")
+                        return result
                     except:
                         continue
+        print(f"   ⚠️ DEBUG: No date found in text")
         return None
 
     def find_all_date_pages(self) -> dict:
-        print(f"📄 Scanning PDF: {self.pdf_path}")
+        print(f"📄 DEBUG: find_all_date_pages START")
+        print(f"   📁 PDF path: {self.pdf_path}")
+        
         if not os.path.exists(self.pdf_path):
-            print(f"❌ PDF not found: {self.pdf_path}")
+            print(f"❌ DEBUG: PDF not found: {self.pdf_path}")
             return {}
 
         doc = fitz.open(self.pdf_path)
+        print(f"   📄 DEBUG: PDF opened, {len(doc)} pages total")
         date_page_map = {}
 
         for page_num in range(len(doc)):
+            print(f"   🔍 DEBUG: Processing page {page_num + 1}/{len(doc)}")
             page = doc[page_num]
             text = page.get_text()
             date_str = self.extract_date_from_text(text)
@@ -288,19 +369,23 @@ class CompleteCalendarExtractor:
             if date_str:
                 if date_str not in date_page_map:
                     date_page_map[date_str] = []
+                
                 date_page_map[date_str].append({
                     'page_num': page_num,
                     'display_num': page_num + 1,
                     'date': date_str,
                     'text': text
                 })
-                print(f"   ✓ Page {page_num + 1} -> {date_str}")
+                print(f"   ✅ DEBUG: Page {page_num + 1} -> {date_str}")
 
         doc.close()
-        print(f"\n📊 Found {len(date_page_map)} unique dates")
+        print(f"📊 DEBUG: Found {len(date_page_map)} unique dates")
         return date_page_map
 
     def convert_page_to_image(self, page_info: dict, dpi: int = 150) -> str:
+        print(f"   🖼️ DEBUG: convert_page_to_image START")
+        print(f"   📄 Page: {page_info['display_num']}, Date: {page_info['date']}")
+        
         doc = fitz.open(self.pdf_path)
         page = doc[page_info['page_num']]
 
@@ -313,58 +398,84 @@ class CompleteCalendarExtractor:
         image_path = os.path.join(self.output_dir, filename)
 
         pix.save(image_path)
+        print(f"   💾 DEBUG: Image saved: {filename} ({os.path.getsize(image_path)} bytes)")
 
         text_file = image_path.replace('.png', '_text.txt')
         with open(text_file, 'w', encoding='utf-8') as f:
             f.write(page_info['text'])
+        print(f"   📝 DEBUG: Text saved: {os.path.basename(text_file)}")
 
         doc.close()
-        print(f"   🖼️ Saved: {filename}")
+        print(f"   🖼️ DEBUG: convert_page_to_image COMPLETE")
         return image_path
 
     def ensure_image_for_date(self, target_date: str, dpi: int = 150) -> dict:
+        print(f"🔍 DEBUG: ensure_image_for_date START - Target: {target_date}")
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         pattern = f"{date_obj.day}_{date_obj.strftime('%B')}_{date_obj.year}_page_"
+        print(f"   📁 Pattern: {pattern}")
 
         if os.path.exists(self.output_dir):
-            for file in os.listdir(self.output_dir):
+            files = os.listdir(self.output_dir)
+            print(f"   📁 Output dir has {len(files)} files")
+            for file in files:
                 if file.startswith(pattern) and file.endswith('.png'):
+                    print(f"   ✅ DEBUG: Found existing image: {file}")
                     return {'status': 'exists', 'image_path': os.path.join(self.output_dir, file)}
 
+        print(f"   🔍 DEBUG: Image not found, scanning PDF...")
         date_map = self.find_all_date_pages()
+        
         if target_date in date_map:
             page_info = date_map[target_date][0]
+            print(f"   📄 DEBUG: Found on page {page_info['display_num']}")
             image_path = self.convert_page_to_image(page_info, dpi)
             return {'status': 'extracted', 'image_path': image_path, 'page_num': page_info['display_num']}
-
-        return {'status': 'not_found'}
+        else:
+            print(f"❌ DEBUG: Date {target_date} not found in PDF!")
+            return {'status': 'not_found', 'image_path': None, 'page_num': None}
 
     def get_page_text_content(self, image_path: str) -> str:
+        print(f"📝 DEBUG: get_page_text_content for {os.path.basename(image_path)}")
         text_file = image_path.replace('.png', '_text.txt')
         if os.path.exists(text_file):
             with open(text_file, 'r', encoding='utf-8') as f:
-                lines = f.read().split('\n')
+                content = f.read()
+                lines = content.split('\n')
                 cleaned = []
                 for line in lines:
                     line = line.strip()
                     if line and not line.isdigit() and not line.startswith('Page'):
                         cleaned.append(line)
-                return '\n\n'.join(cleaned)
+                result = '\n\n'.join(cleaned)
+                print(f"   📝 DEBUG: Extracted {len(result)} characters from {len(lines)} lines")
+                return result
+        print(f"   ⚠️ DEBUG: No text file found for {image_path}")
         return ""
 
     def get_page_title(self, image_path: str) -> str:
+        print(f"📝 DEBUG: get_page_title for {os.path.basename(image_path)}")
         text_file = image_path.replace('.png', '_text.txt')
         if os.path.exists(text_file):
             with open(text_file, 'r', encoding='utf-8') as f:
-                return detect_page_title(f.read())
+                page_text = f.read()
+                title = detect_page_title(page_text)
+                print(f"   📝 DEBUG: Detected title: '{title}'")
+                return title
+        print(f"   ⚠️ DEBUG: No text file, returning default")
         return "Creative Daily"
 
     def create_or_get_playlist(self, youtube) -> str:
+        print(f"📁 DEBUG: create_or_get_playlist START")
         playlists = youtube.playlists().list(part='snippet', mine=True, maxResults=50).execute()
+        print(f"   📁 DEBUG: Found {len(playlists.get('items', []))} playlists")
+        
         for playlist in playlists.get('items', []):
             if playlist['snippet']['title'] == PLAYLIST_TITLE:
+                print(f"   ✅ DEBUG: Found existing playlist: {playlist['id']}")
                 return playlist['id']
 
+        print(f"   📝 DEBUG: Creating new playlist...")
         response = youtube.playlists().insert(
             part='snippet,status',
             body={
@@ -372,10 +483,14 @@ class CompleteCalendarExtractor:
                 'status': {'privacyStatus': 'public'}
             }
         ).execute()
+        print(f"   ✅ DEBUG: Created playlist: {response['id']}")
         return response['id']
 
     def upload_to_youtube(self, video_path: str, target_date: str, page_text: str = "", video_title: str = "") -> dict:
-        print(f"\n📤 Uploading to YouTube...")
+        print(f"\n📤 DEBUG: upload_to_youtube START")
+        print(f"   📹 Video path: {video_path}")
+        print(f"   📁 Video exists: {os.path.exists(video_path)}")
+        print(f"   📏 Video size: {os.path.getsize(video_path) / (1024*1024):.1f} MB")
 
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         formatted_date = date_obj.strftime("%B %d, %Y")
@@ -386,6 +501,7 @@ class CompleteCalendarExtractor:
             main_title = f"Creative Daily | {formatted_date}"
 
         full_title = f"{main_title} | #Dubai #creativedaily #stupidestbrokeguy #UAE"
+        print(f"   📝 Title: {full_title[:80]}...")
 
         video_description = f"""{page_text[:4500] if page_text else ''}
 
@@ -395,6 +511,7 @@ class CompleteCalendarExtractor:
 
 #Dubai #creativedaily #stupidestbrokeguy #UAE
 """
+        print(f"   📝 Description length: {len(video_description)} chars")
 
         try:
             from google.oauth2.credentials import Credentials
@@ -402,6 +519,7 @@ class CompleteCalendarExtractor:
             from google.auth.transport.requests import Request
             from googleapiclient.discovery import build
             from googleapiclient.http import MediaFileUpload
+            print(f"   ✅ DEBUG: Google libraries imported")
 
             SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
             CLIENT_SECRETS_FILE = "client_secrets.json"
@@ -412,27 +530,37 @@ class CompleteCalendarExtractor:
             if os.path.exists(TOKEN_FILE):
                 with open(TOKEN_FILE, 'rb') as f:
                     credentials = pickle.load(f)
-                print("   📂 Loaded saved credentials")
+                print(f"   📂 DEBUG: Loaded saved credentials from {TOKEN_FILE}")
+            else:
+                print(f"   ⚠️ DEBUG: No token file found at {TOKEN_FILE}")
 
             if not credentials or not credentials.valid:
                 if credentials and credentials.expired and credentials.refresh_token:
-                    print("   🔄 Refreshing token...")
+                    print("   🔄 DEBUG: Refreshing expired token...")
                     credentials.refresh(Request())
                 else:
                     if not os.path.exists(CLIENT_SECRETS_FILE):
+                        print(f"   ❌ DEBUG: No client_secrets.json found!")
                         return {'status': 'skipped', 'error': 'No credentials'}
-                    print("   🔐 Opening browser for authentication...")
+                    
+                    print("   🔐 DEBUG: Opening browser for authentication...")
                     free_port = find_free_port()
+                    print(f"   🔌 DEBUG: Using port: {free_port}")
+                    
                     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
                     try:
                         credentials = flow.run_local_server(port=free_port, open_browser=True)
+                        print(f"   ✅ DEBUG: Authentication successful")
                     except OSError:
+                        print(f"   🔄 DEBUG: Retrying with automatic port...")
                         credentials = flow.run_local_server(open_browser=True)
+                
                 with open(TOKEN_FILE, 'wb') as f:
                     pickle.dump(credentials, f)
-                print("   💾 Saved credentials for future use")
+                print(f"   💾 DEBUG: Saved credentials to {TOKEN_FILE}")
 
             youtube = build('youtube', 'v3', credentials=credentials)
+            print(f"   ✅ DEBUG: YouTube service built")
 
             if self.playlist_id is None:
                 self.playlist_id = self.create_or_get_playlist(youtube)
@@ -446,16 +574,19 @@ class CompleteCalendarExtractor:
                 },
                 'status': {'privacyStatus': 'public', 'selfDeclaredMadeForKids': False}
             }
+            print(f"   📦 DEBUG: Request body prepared")
 
             media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
-            print(f"   ⬆️ Uploading video...")
+            print(f"   ⬆️ DEBUG: Uploading video...")
+            
             request = youtube.videos().insert(part=','.join(body.keys()), body=body, media_body=media)
             response = request.execute()
             video_url = f"https://youtu.be/{response['id']}"
-            print(f"   ✅ Uploaded successfully!")
-            print(f"   📹 {video_url}")
+            print(f"   ✅ DEBUG: Upload successful! Video ID: {response['id']}")
+            print(f"   📹 DEBUG: URL: {video_url}")
 
             # Add to playlist
+            print(f"   📁 DEBUG: Adding to playlist {self.playlist_id}...")
             youtube.playlistItems().insert(
                 part='snippet',
                 body={
@@ -465,37 +596,47 @@ class CompleteCalendarExtractor:
                     }
                 }
             ).execute()
-            print(f"   ✅ Added to playlist: {PLAYLIST_TITLE}")
+            print(f"   ✅ DEBUG: Added to playlist: {PLAYLIST_TITLE}")
 
+            print(f"📤 DEBUG: upload_to_youtube COMPLETE - SUCCESS")
             return {'status': 'success', 'video_url': video_url}
 
         except Exception as e:
-            print(f"   ❌ Upload error: {e}")
-            return {'status': 'failed', 'error': str(e)}
+            error_msg = str(e)
+            print(f"   ❌ DEBUG: Upload error: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            return {'status': 'failed', 'error': error_msg}
 
     def process_date(self, target_date: str, post_to_youtube: bool = True, 
                      slide_duration: int = 18, audio_file: str = None) -> dict:
         print("="*60)
-        print("📅 CREATIVE DAILY - SIMPLIFIED VIDEO GENERATOR")
+        print("📅 CREATIVE DAILY - SIMPLIFIED VIDEO GENERATOR (DEBUG MODE)")
         print("🎬 60% zoom | Yellow background | Text from image")
         print("="*60)
         print(f"📅 Target Date: {target_date}")
         print(f"⏱️  Duration: {slide_duration} seconds")
         print(f"🎵 Audio: {audio_file if audio_file else 'Auto-detect or silent'}")
+        print(f"📹 YouTube Upload: {'ON' if post_to_youtube else 'OFF'}")
         print("="*60)
 
+        print(f"\n🔍 DEBUG: process_date - Step 1: Ensuring image for date")
         result = self.ensure_image_for_date(target_date)
         if result['status'] == 'not_found':
-            print(f"\n❌ Date {target_date} not found in PDF")
+            print(f"\n❌ DEBUG: Date {target_date} not found in PDF")
             return {'status': 'not_found', 'date': target_date}
 
-        print(f"\n✅ Image ready: {os.path.basename(result['image_path'])}")
+        print(f"\n✅ DEBUG: Image ready: {os.path.basename(result['image_path'])}")
 
+        print(f"\n🔍 DEBUG: process_date - Step 2: Extracting text content")
         page_text = self.get_page_text_content(result['image_path'])
+        print(f"   📝 Text length: {len(page_text)} characters")
+        
+        print(f"\n🔍 DEBUG: process_date - Step 3: Detecting page title")
         page_title = self.get_page_title(result['image_path'])
         print(f"   📝 Detected title: '{page_title}'")
-        print(f"   📝 Text length: {len(page_text)} characters")
 
+        print(f"\n🔍 DEBUG: process_date - Step 4: Creating video")
         video_path = create_sliding_animation_video(
             image_path=result['image_path'],
             text_content=page_text,
@@ -504,12 +645,19 @@ class CompleteCalendarExtractor:
         )
 
         if video_path is None:
+            print(f"\n❌ DEBUG: Video creation failed")
             return {'status': 'conversion_failed', 'date': target_date}
+
+        print(f"\n✅ DEBUG: Video created: {video_path}")
 
         youtube_result = None
         if post_to_youtube:
+            print(f"\n🔍 DEBUG: process_date - Step 5: Uploading to YouTube")
             youtube_result = self.upload_to_youtube(video_path, target_date, page_text, page_title)
+        else:
+            print(f"\n⏭️ DEBUG: YouTube upload skipped (post_to_youtube=False)")
 
+        print(f"\n🔍 DEBUG: process_date COMPLETE")
         return {
             'status': 'success',
             'date': target_date,
@@ -522,6 +670,14 @@ class CompleteCalendarExtractor:
 
 
 if __name__ == "__main__":
+    print("="*60)
+    print("🎬 CREATIVE DAILY SCRIPT STARTING")
+    print("="*60)
+    print(f"🐍 Python version: {sys.version}")
+    print(f"📁 Current working directory: {os.getcwd()}")
+    print(f"📁 Files in directory: {os.listdir('.')}")
+    print("="*60)
+
     PDF_PATH = "your_document.pdf"
     OUTPUT_DIR = "extracted_date_pages"
 
@@ -530,30 +686,48 @@ if __name__ == "__main__":
     slide_duration = 18
     audio_file = None
 
+    # Parse command line arguments
+    print(f"\n🔍 DEBUG: Parsing arguments: {sys.argv[1:]}")
     for arg in sys.argv[1:]:
         if arg == "--no-youtube":
             post_to_youtube = False
+            print(f"   📹 YouTube upload disabled")
         elif arg.startswith("--duration="):
             slide_duration = int(arg.split("=")[1])
+            print(f"   ⏱️ Duration set to {slide_duration}s")
         elif arg.startswith("--audio="):
             audio_file = arg.split("=")[1]
+            print(f"   🎵 Audio file specified: {audio_file}")
         elif arg.endswith(".mp3") and os.path.exists(arg):
             audio_file = arg
+            print(f"   🎵 Audio file detected: {audio_file}")
         elif re.match(r'\d{4}-\d{2}-\d{2}', arg):
             target_date = arg
+            print(f"   📅 Target date: {target_date}")
 
     if target_date is None:
         target_date = datetime.now().strftime("%Y-%m-%d")
+        print(f"   📅 Using today's date: {target_date}")
 
-    print(f"\n🎯 Processing: {target_date}")
-    print(f"📹 YouTube Upload: {'ON' if post_to_youtube else 'OFF'}")
-    print(f"⏱️  Duration: {slide_duration} seconds")
-    print(f"🎵 Audio Source: {audio_file if audio_file else 'Auto-detect'}")
-    print(f"📁 Playlist: {PLAYLIST_TITLE}\n")
+    print(f"\n🎯 Final Configuration:")
+    print(f"   📅 Target Date: {target_date}")
+    print(f"   📹 YouTube Upload: {'ON' if post_to_youtube else 'OFF'}")
+    print(f"   ⏱️  Duration: {slide_duration} seconds")
+    print(f"   🎵 Audio Source: {audio_file if audio_file else 'Auto-detect'}")
+    print(f"   📁 Playlist: {PLAYLIST_TITLE}")
+    print(f"   📄 PDF Path: {PDF_PATH}")
+    print(f"   📁 Output Dir: {OUTPUT_DIR}")
+    print("="*60)
 
+    # Check if PDF exists
     if not os.path.exists(PDF_PATH):
         print(f"❌ PDF not found: {PDF_PATH}")
+        print(f"💡 Make sure '{PDF_PATH}' exists in the current directory")
+        print(f"📁 Current directory files: {os.listdir('.')}")
         sys.exit(1)
+    else:
+        pdf_size = os.path.getsize(PDF_PATH) / (1024 * 1024)
+        print(f"✅ PDF found: {PDF_PATH} ({pdf_size:.1f} MB)")
 
     processor = CompleteCalendarExtractor(PDF_PATH, OUTPUT_DIR)
     result = processor.process_date(target_date, post_to_youtube, 
@@ -569,11 +743,19 @@ if __name__ == "__main__":
         print(f"   📅 Date: {result['date']}")
         print(f"   📝 Title: {result.get('detected_title', 'N/A')}")
         print(f"   🎬 Video: {result.get('video_path', 'N/A')}")
+        
+        if os.path.exists(result.get('video_path', '')):
+            video_size = os.path.getsize(result['video_path']) / (1024 * 1024)
+            print(f"   📏 Video size: {video_size:.1f} MB")
 
         if result.get('youtube') and result['youtube']['status'] == 'success':
             print(f"\n📹 POSTED TO YOUTUBE!")
             print(f"   🔗 URL: {result['youtube']['video_url']}")
             print(f"   📁 Playlist: {PLAYLIST_TITLE}")
+        elif result.get('youtube') and result['youtube']['status'] == 'failed':
+            print(f"\n❌ YouTube upload failed: {result['youtube'].get('error', 'Unknown')}")
+        else:
+            print(f"\n📹 YouTube upload not attempted or skipped")
 
         sys.exit(0)
     else:
