@@ -1,7 +1,8 @@
 """
 Complete Calendar Date Extractor & YouTube Poster
 Creates SLIDING ANIMATION video, uploads to YouTube with PLAYLIST
-Detects PAGE TITLE from structured format (Date, Stupid Orange, Creative Daily, TITLE...)
+Detects PAGE TITLE from structured format
+FIXED: No Arial font dependency - works on GitHub Actions
 """
 
 import os
@@ -67,6 +68,7 @@ def create_sliding_animation_video(image_path: str, text_content: str,
                                     slide_duration: int = 18) -> str:
     """
     Create video with image sliding up and text scrolling like Spotify lyrics
+    FIXED: No Arial font dependency - uses default or DejaVu-Sans
     """
     if output_path is None:
         output_path = image_path.replace('.png', '_sliding_video.mp4')
@@ -159,8 +161,38 @@ def create_sliding_animation_video(image_path: str, text_content: str,
 
         full_text = '\n'.join(clean_lines)
 
-        # Create scrolling text
-        text_clip = TextClip(text=full_text, color=text_color, font="Arial")
+        # Create scrolling text - FIXED for GitHub Actions (no Arial font)
+        text_clip = None
+        
+        # Try different font options (Ubuntu runners have DejaVu-Sans)
+        font_options = ["DejaVu-Sans", "Liberation-Sans", "FreeSans", None]
+        
+        for font in font_options:
+            try:
+                if font:
+                    text_clip = TextClip(text=full_text, color=text_color, font=font)
+                else:
+                    text_clip = TextClip(text=full_text, color=text_color)
+                print(f"   Using font: {font if font else 'default'}")
+                break
+            except:
+                continue
+        
+        if text_clip is None:
+            # Last resort - try with different parameter name
+            try:
+                text_clip = TextClip(txt=full_text, color=text_color)
+            except:
+                try:
+                    text_clip = TextClip(full_text, color=text_color)
+                except:
+                    print(f"   ⚠️ Could not create text clip - continuing without text")
+                    final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
+                    final_clip.write_videofile(output_path, codec='libx264', fps=24, logger=None)
+                    if os.path.exists(temp_img_path):
+                        os.remove(temp_img_path)
+                    return output_path
+
         text_clip = text_clip.with_duration(slide_duration)
 
         text_start_y = screen_height
@@ -361,16 +393,22 @@ class CompleteCalendarExtractor:
             if os.path.exists(TOKEN_FILE):
                 with open(TOKEN_FILE, 'rb') as f:
                     credentials = pickle.load(f)
+                print("   📂 Loaded saved credentials")
 
             if not credentials or not credentials.valid:
                 if credentials and credentials.expired and credentials.refresh_token:
+                    print("   🔄 Refreshing token...")
                     credentials.refresh(Request())
                 else:
+                    if not os.path.exists(CLIENT_SECRETS_FILE):
+                        return {'status': 'skipped', 'error': 'No credentials'}
+                    print("   🔐 Opening browser for auth...")
                     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
                     credentials = flow.run_local_server(port=find_free_port(), open_browser=True)
 
                 with open(TOKEN_FILE, 'wb') as f:
                     pickle.dump(credentials, f)
+                print("   💾 Saved credentials")
 
             youtube = build('youtube', 'v3', credentials=credentials)
 
@@ -379,8 +417,8 @@ class CompleteCalendarExtractor:
 
             body = {
                 'snippet': {
-                    'title': full_title,
-                    'description': video_description,
+                    'title': full_title[:100],
+                    'description': video_description[:5000],
                     'tags': ['Dubai', 'creativedaily', 'stupidestbrokeguy', 'UAE', target_date],
                     'categoryId': '22'
                 },
@@ -388,6 +426,7 @@ class CompleteCalendarExtractor:
             }
 
             media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
+            print(f"   ⬆️ Uploading video...")
             request = youtube.videos().insert(part=','.join(body.keys()), body=body, media_body=media)
             response = request.execute()
             video_url = f"https://youtu.be/{response['id']}"
@@ -402,10 +441,12 @@ class CompleteCalendarExtractor:
                     }
                 }
             ).execute()
+            print(f"   ✅ Added to playlist: {PLAYLIST_TITLE}")
 
             return {'status': 'success', 'video_url': video_url}
 
         except Exception as e:
+            print(f"   ❌ Upload error: {e}")
             return {'status': 'failed', 'error': str(e)}
 
     def process_date(self, target_date: str, post_to_youtube: bool = True,
@@ -414,14 +455,22 @@ class CompleteCalendarExtractor:
         print("📅 CREATIVE DAILY - SLIDING ANIMATION VIDEO")
         print("🎬 Image slides up | Text scrolls like Spotify")
         print("="*60)
+        print(f"Target Date: {target_date}")
+        print(f"Output Dir: {self.output_dir}")
+        print(f"Duration: {slide_duration} seconds")
+        print("="*60)
 
         result = self.ensure_image_for_date(target_date, dpi)
         if result['status'] == 'not_found':
+            print(f"\n❌ Date {target_date} not found")
             return {'status': 'not_found', 'date': target_date}
+
+        print(f"\n✅ Image ready: {os.path.basename(result['image_path'])}")
 
         page_text = self.get_page_text_content(result['image_path'])
         page_title = self.get_page_title(result['image_path'])
-        print(f"   📝 Title: '{page_title}'")
+        print(f"   📝 Detected title: '{page_title}'")
+        print(f"   📝 Text length: {len(page_text)} chars")
 
         video_path = create_sliding_animation_video(
             image_path=result['image_path'],
@@ -430,7 +479,7 @@ class CompleteCalendarExtractor:
         )
 
         if video_path is None:
-            return {'status': 'conversion_failed'}
+            return {'status': 'conversion_failed', 'date': target_date}
 
         youtube_result = None
         if post_to_youtube:
@@ -439,7 +488,9 @@ class CompleteCalendarExtractor:
         return {
             'status': 'success',
             'date': target_date,
+            'image_path': result['image_path'],
             'video_path': video_path,
+            'page_num': result['page_num'],
             'detected_title': page_title,
             'youtube': youtube_result
         }
@@ -466,18 +517,27 @@ if __name__ == "__main__":
 
     print(f"\n🎯 Processing: {target_date}")
     print(f"📹 YouTube: {'ON' if post_to_youtube else 'OFF'}")
-    print(f"⏱️  Duration: {slide_duration}s\n")
+    print(f"⏱️  Duration: {slide_duration}s")
+    print(f"📁 Playlist: {PLAYLIST_TITLE}\n")
 
     processor = CompleteCalendarExtractor(PDF_PATH, OUTPUT_DIR)
     result = processor.process_date(target_date, post_to_youtube, slide_duration=slide_duration)
 
     print("\n" + "="*60)
+    print("📋 FINAL RESULT")
+    print("="*60)
+
     if result['status'] == 'success':
         print(f"✅ SUCCESS!")
         print(f"   Date: {result['date']}")
         print(f"   Title: {result.get('detected_title', 'N/A')}")
+        print(f"   Video: {result.get('video_path', 'N/A')}")
+
         if result.get('youtube') and result['youtube']['status'] == 'success':
             print(f"\n📹 POSTED TO YOUTUBE!")
             print(f"   URL: {result['youtube']['video_url']}")
+            print(f"   Playlist: {PLAYLIST_TITLE}")
+        sys.exit(0)
     else:
         print(f"❌ FAILED")
+        sys.exit(1)
