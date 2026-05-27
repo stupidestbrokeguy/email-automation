@@ -1,7 +1,7 @@
 """
 Creative Daily - Complete Working Script
 Extracts from PDF, creates sliding animation video, uploads to YouTube
-Works with token.pickle OR service account
+ZOOMED IN IMAGE + CLEARER TEXT + WIDER VIDEO
 """
 
 import os
@@ -31,7 +31,7 @@ def find_free_port(start_port=8080, end_port=8090):
     return 8080
 
 def detect_page_title(page_text: str) -> str:
-    """Detect title from page structure (Date, Stupid Orange, Creative Daily, TITLE)"""
+    """Detect title from page structure"""
     lines = page_text.split('\n')
     clean_lines = []
     for line in lines:
@@ -50,9 +50,12 @@ def detect_page_title(page_text: str) -> str:
 def create_sliding_animation_video(image_path: str, text_content: str,
                                     output_path: str = None,
                                     bg_color: tuple = (255, 215, 0),
-                                    text_color: str = "black",
+                                    text_color: str = "white",
                                     slide_duration: int = 18) -> str:
-    """Create video with image sliding up and text scrolling like Spotify lyrics"""
+    """
+    Create video with ZOOMED IN image and scrolling text
+    Image is zoomed 2x so text on image is readable
+    """
     
     if output_path is None:
         output_path = image_path.replace('.png', '_video.mp4')
@@ -73,24 +76,25 @@ def create_sliding_animation_video(image_path: str, text_content: str,
             print(f"   ❌ moviepy import failed: {e}")
             return None
     
-    screen_width, screen_height = 1080, 1920
+    # WIDER SCREEN - 16:9 Landscape
+    screen_width, screen_height = 1920, 1080
     
     try:
         from PIL import Image
+        
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
         
-        # Scale image to fit screen
-        scale = screen_width / img_width
-        new_width = screen_width
-        new_height = int(img_height * scale)
+        # ZOOM IN: Scale image to 200% of screen width (2x zoom)
+        # This makes the text on the image much larger and readable
+        zoom_factor = 2.0
+        new_width = int(screen_width * zoom_factor)
+        new_height = int(img_height * (new_width / img_width))
         
-        if new_height < screen_height * 0.8:
-            scale = (screen_height * 0.8) / img_height
-            new_width = int(img_width * scale)
-            new_height = int(img_height * scale)
+        print(f"   Original image: {img_width}x{img_height}")
+        print(f"   Zoomed to: {new_width}x{new_height} ({zoom_factor}x zoom)")
         
-        # Resize image
+        # Resize image with high quality
         try:
             pil_img_resized = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         except AttributeError:
@@ -102,14 +106,19 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         temp_img_path = image_path.replace('.png', '_temp_resized.png')
         pil_img_resized.save(temp_img_path)
         
-        # Image clip with slide animation (starts at bottom, moves up)
+        # Image clip with slide animation - starts off-screen at bottom, moves up
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
-        start_y = screen_height
-        end_y = -new_height + screen_height * 0.15
+        
+        # Start position: image centered, but starting below screen
+        # End position: image centered, scrolled up to show bottom part
+        start_y = screen_height  # Start at bottom edge
+        end_y = -new_height + screen_height * 0.3  # End showing bottom portion
         
         def image_slide_position(t):
             progress = min(1.0, t / slide_duration)
-            y = start_y + (end_y - start_y) * progress
+            # Ease in-out for smoother motion
+            eased = progress * progress * (3 - 2 * progress)
+            y = start_y + (end_y - start_y) * eased
             return ('center', y)
         
         image_clip = image_clip.with_position(image_slide_position)
@@ -119,17 +128,18 @@ def create_sliding_animation_video(image_path: str, text_content: str,
                                 color=bg_color,
                                 duration=slide_duration)
         
-        # Process text for scrolling
+        # Process text for scrolling - cleaner wrapping
         lines = text_content.split('\n')
         clean_lines = []
         for line in lines:
             line = line.strip()
             if line and not line.isdigit() and len(line) > 1 and not line.startswith('Page'):
-                if len(line) > 55:
+                # Wrap long lines at 85 characters for wider screen
+                if len(line) > 85:
                     words = line.split()
                     current_line = ""
                     for word in words:
-                        if len(current_line) + len(word) + 1 <= 55:
+                        if len(current_line) + len(word) + 1 <= 85:
                             current_line += (" " + word if current_line else word)
                         else:
                             if current_line:
@@ -143,19 +153,35 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         if not clean_lines:
             clean_lines = ["Creative Daily", datetime.now().strftime("%B %d, %Y")]
         
+        print(f"   📝 Creating {len(clean_lines)} text lines...")
         full_text = '\n'.join(clean_lines)
         
-        # Create scrolling text - try different fonts for GitHub Actions
+        # Create text clip with larger font and stroke for clarity
         text_clip = None
-        font_options = ["DejaVu-Sans", "Liberation-Sans", "FreeSans", None]
+        font_size = 56  # Larger font for readability
+        
+        font_options = ["DejaVu-Sans-Bold", "DejaVu-Sans", "Liberation-Sans", "FreeSans", None]
         
         for font in font_options:
             try:
                 if font:
-                    text_clip = TextClip(text=full_text, color=text_color, font=font)
+                    text_clip = TextClip(
+                        text=full_text,
+                        color=text_color,
+                        font=font,
+                        fontsize=font_size,
+                        stroke_width=2,
+                        stroke_color='black'
+                    )
                 else:
-                    text_clip = TextClip(text=full_text, color=text_color)
-                print(f"   Using font: {font if font else 'default'}")
+                    text_clip = TextClip(
+                        text=full_text,
+                        color=text_color,
+                        fontsize=font_size,
+                        stroke_width=2,
+                        stroke_color='black'
+                    )
+                print(f"   Using font: {font if font else 'default'} with stroke")
                 break
             except:
                 continue
@@ -163,18 +189,23 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         if text_clip is None:
             print(f"   ⚠️ Could not create text clip - continuing without text")
             final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
-            final_clip.write_videofile(output_path, codec='libx264', fps=24, logger=None)
+            final_clip.write_videofile(output_path, codec='libx264', fps=30, bitrate="5000k", logger=None)
             if os.path.exists(temp_img_path):
                 os.remove(temp_img_path)
             return output_path
         
         text_clip = text_clip.with_duration(slide_duration)
+        
+        # Slower, smoother scroll for better readability
+        text_height = text_clip.size[1]
         text_start_y = screen_height
-        text_end_y = -text_clip.size[1] - 50
+        text_end_y = -text_height - 50
         
         def text_scroll_position(t):
             progress = min(1.0, t / slide_duration)
-            y = text_start_y + (text_end_y - text_start_y) * progress
+            # Smooth easing
+            eased = progress * progress * (3 - 2 * progress)
+            y = text_start_y + (text_end_y - text_start_y) * eased
             return ('center', y)
         
         text_clip = text_clip.with_position(text_scroll_position)
@@ -183,8 +214,16 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         final_clip = CompositeVideoClip([background, image_clip, text_clip],
                                          size=(screen_width, screen_height))
         
-        # Write video
-        final_clip.write_videofile(output_path, codec='libx264', fps=24, logger=None)
+        # Write video with high quality settings
+        print(f"   💾 Writing video...")
+        final_clip.write_videofile(
+            output_path,
+            codec='libx264',
+            fps=30,
+            bitrate="5000k",
+            preset='medium',
+            logger=None
+        )
         
         # Cleanup
         final_clip.close()
@@ -196,6 +235,8 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         
     except Exception as e:
         print(f"   ❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -206,8 +247,6 @@ class CompleteCalendarExtractor:
         self.date_patterns = [
             r'\b\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b',
             r'\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b',
-            r'\b\d{2}/\d{2}/\d{4}\b',
-            r'\b\d{4}-\d{2}-\d{2}\b',
         ]
         os.makedirs(output_dir, exist_ok=True)
         self.playlist_id = None
@@ -331,7 +370,6 @@ class CompleteCalendarExtractor:
         return response['id']
 
     def upload_to_youtube(self, video_path: str, target_date: str, page_text: str = "", video_title: str = "") -> dict:
-        """Upload video to YouTube using token.pickle"""
         print(f"\n📤 Uploading to YouTube...")
 
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
@@ -342,12 +380,12 @@ class CompleteCalendarExtractor:
         else:
             main_title = f"Creative Daily | {formatted_date}"
 
-        full_title = f"{main_title} | Creative Daily | {formatted_date} | #Dubai #creativedaily #stupidestbrokeguy #UAE"
+        full_title = f"{main_title} | #Dubai #creativedaily #stupidestbrokeguy #UAE"
 
         video_description = f"""{page_text[:4500] if page_text else ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✨ Creative Daily | {formatted_date} | {main_title} | Stupid Orange | Stupidest Broke Guy
+✨ Creative Daily | {formatted_date}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #Dubai #creativedaily #stupidestbrokeguy #UAE
@@ -366,13 +404,11 @@ class CompleteCalendarExtractor:
 
             credentials = None
 
-            # Load existing token
             if os.path.exists(TOKEN_FILE):
                 with open(TOKEN_FILE, 'rb') as f:
                     credentials = pickle.load(f)
                 print("   📂 Loaded saved credentials")
 
-            # Refresh or create new token
             if not credentials or not credentials.valid:
                 if credentials and credentials.expired and credentials.refresh_token:
                     print("   🔄 Refreshing token...")
@@ -380,27 +416,22 @@ class CompleteCalendarExtractor:
                 else:
                     if not os.path.exists(CLIENT_SECRETS_FILE):
                         return {'status': 'skipped', 'error': 'No credentials'}
-
                     print("   🔐 Opening browser for auth...")
                     free_port = find_free_port()
                     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
-
                     try:
                         credentials = flow.run_local_server(port=free_port, open_browser=True)
                     except OSError:
                         credentials = flow.run_local_server(open_browser=True)
-
                 with open(TOKEN_FILE, 'wb') as f:
                     pickle.dump(credentials, f)
                 print("   💾 Saved credentials")
 
             youtube = build('youtube', 'v3', credentials=credentials)
 
-            # Get or create playlist
             if self.playlist_id is None:
                 self.playlist_id = self.create_or_get_playlist(youtube)
 
-            # Upload video
             body = {
                 'snippet': {
                     'title': full_title[:100],
@@ -418,7 +449,6 @@ class CompleteCalendarExtractor:
             video_url = f"https://youtu.be/{response['id']}"
             print(f"   ✅ Uploaded: {video_url}")
 
-            # Add to playlist
             youtube.playlistItems().insert(
                 part='snippet',
                 body={
@@ -438,8 +468,8 @@ class CompleteCalendarExtractor:
 
     def process_date(self, target_date: str, post_to_youtube: bool = True, slide_duration: int = 18) -> dict:
         print("="*60)
-        print("📅 CREATIVE DAILY - SLIDING ANIMATION VIDEO")
-        print("🎬 Image slides up | Text scrolls like Spotify")
+        print("📅 CREATIVE DAILY - ZOOMED IMAGE VIDEO")
+        print("🎬 Image zoomed 2x | Text scrolls | Clearer text")
         print("="*60)
         print(f"Target Date: {target_date}")
 
@@ -503,7 +533,6 @@ if __name__ == "__main__":
     print(f"⏱️  Duration: {slide_duration}s")
     print(f"📁 Playlist: {PLAYLIST_TITLE}\n")
 
-    # Check if PDF exists
     if not os.path.exists(PDF_PATH):
         print(f"❌ PDF not found: {PDF_PATH}")
         sys.exit(1)
