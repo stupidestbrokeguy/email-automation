@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to process (YYYY-MM-DD)'
+        required: false
+        default: ''
+        type: string
   push:
     branches: [ main, master ]
 
@@ -13,6 +19,7 @@ jobs:
     
     permissions:
       contents: write
+      actions: write
     
     steps:
     - name: Checkout code
@@ -29,7 +36,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install PyMuPDF moviepy google-api-python-client google-auth-oauthlib google-auth-httplib2 pillow numpy
+        pip install PyMuPDF moviepy google-api-python-client google-auth-oauthlib google-auth-httplib2 pillow numpy scipy
     
     - name: Install FFmpeg
       run: |
@@ -56,8 +63,40 @@ jobs:
         fi
         echo "✅ PDF file is valid"
     
+    - name: Set target date
+      id: date
+      run: |
+        if [ -n "${{ github.event.inputs.date }}" ]; then
+          TARGET_DATE="${{ github.event.inputs.date }}"
+        else
+          TARGET_DATE=$(date +'%Y-%m-%d')
+        fi
+        echo "target_date=$TARGET_DATE" >> $GITHUB_OUTPUT
+        echo "run_id=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_OUTPUT
+        echo "📅 Target date: $TARGET_DATE"
+    
     - name: Run Creative Daily script
       run: |
-        TODAY=$(date +'%Y-%m-%d')
-        echo "📅 Processing date: $TODAY"
-        python check.py 2026-06-06
+        echo "📅 Processing date: ${{ steps.date.outputs.target_date }}"
+        python check.py ${{ steps.date.outputs.target_date }}
+    
+    - name: Upload all artifacts for this run
+      uses: actions/upload-artifact@v4
+      with:
+        name: creative-daily-${{ steps.date.outputs.target_date }}-${{ steps.date.outputs.run_id }}
+        path: |
+          extracted_date_pages/
+          *.log
+        retention-days: 30
+    
+    - name: Upload video as separate artifact (easy access)
+      uses: actions/upload-artifact@v4
+      with:
+        name: video-${{ steps.date.outputs.target_date }}
+        path: extracted_date_pages/*.mp4
+        retention-days: 30
+    
+    - name: Notify completion
+      run: |
+        echo "✅ Workflow completed for ${{ steps.date.outputs.target_date }}"
+        echo "📹 Video saved in artifacts"
