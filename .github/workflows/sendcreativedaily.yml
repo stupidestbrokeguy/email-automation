@@ -60,7 +60,7 @@ jobs:
       run: |
         TODAY=$(date +'%Y-%m-%d')
         echo "📅 Processing date: $TODAY"
-        python check.py $TODAY
+        python check.py 2026-06-05
     
     - name: Upload video as artifact
       uses: actions/upload-artifact@v4
