@@ -342,12 +342,12 @@ class CompleteCalendarExtractor:
         else:
             main_title = f"Creative Daily | {formatted_date}"
 
-        full_title = f"{main_title} | #Dubai #creativedaily #stupidestbrokeguy #UAE"
+        full_title = f"{main_title} | Creative Daily | {formatted_date} | #Dubai #creativedaily #stupidestbrokeguy #UAE"
 
         video_description = f"""{page_text[:4500] if page_text else ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✨ Creative Daily | {formatted_date}
+✨ Creative Daily | {formatted_date} | {main_title} | Stupid Orange | Stupidest Broke Guy
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #Dubai #creativedaily #stupidestbrokeguy #UAE
