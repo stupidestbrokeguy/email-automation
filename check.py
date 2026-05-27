@@ -498,18 +498,18 @@ class CompleteCalendarExtractor:
         if video_title and video_title != "Creative Daily":
             main_title = video_title
         else:
-            main_title = f"Creative Daily | {formatted_date}"
+            main_title = f"Creative Daily | {formatted_date} | Stupid Orange | Stupidest Broke Guy"
 
-        full_title = f"{main_title} | #Dubai #creativedaily #stupidestbrokeguy #UAE"
+        full_title = f"{main_title} |  #creativedaily #stupidestbrokeguy #UAE #Dubai"
         print(f"   📝 Title: {full_title[:80]}...")
 
         video_description = f"""{page_text[:4500] if page_text else ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✨ Creative Daily | {formatted_date}
+✨ Creative Daily | {formatted_date} | Stupid Orange | Stupidest Broke Guy
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-#Dubai #creativedaily #stupidestbrokeguy #UAE
+ #creativedaily #stupidestbrokeguy #UAE #Dubai
 """
         print(f"   📝 Description length: {len(video_description)} chars")
 
