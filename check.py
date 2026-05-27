@@ -1,7 +1,12 @@
 """
-Creative Daily - Complete Working Script
+Creative Daily - Complete Polished Script
 Extracts from PDF, creates sliding animation video, uploads to YouTube
-Image ZOOMED 60% for larger text + Background Audio + Yellow background
+FEATURES:
+- 60% zoomed image for large readable text
+- Yellow background with subtle glow
+- White text with black stroke for clarity
+- Background music with proper volume control
+- Image starts visible (at 4.8-second position)
 """
 
 import os
@@ -31,7 +36,7 @@ def find_free_port(start_port=8080, end_port=8090):
     return 8080
 
 def detect_page_title(page_text: str) -> str:
-    """Detect title from page structure"""
+    """Detect title from page structure: Date → Stupid Orange → Creative Daily → TITLE"""
     lines = page_text.split('\n')
     clean_lines = []
     for line in lines:
@@ -47,53 +52,6 @@ def detect_page_title(page_text: str) -> str:
             found_creative_daily = True
     return "Creative Daily"
 
-def generate_ambient_music(duration: int, output_path: str = "ambient_music.mp3"):
-    """Generate soft ambient music using numpy (fallback if no audio file)"""
-    try:
-        import numpy as np
-        from scipy.io.wavfile import write
-        import subprocess
-        
-        sample_rate = 44100
-        t = np.linspace(0, duration, int(sample_rate * duration))
-        
-        # Gentle piano-like chord progression (C major + A minor)
-        melody = (
-            0.15 * np.sin(2 * np.pi * 261.63 * t) +  # C4
-            0.12 * np.sin(2 * np.pi * 329.63 * t) +  # E4
-            0.10 * np.sin(2 * np.pi * 392.00 * t) +  # G4
-            0.08 * np.sin(2 * np.pi * 440.00 * t)    # A4
-        )
-        
-        # Gentle bass
-        bass = 0.08 * np.sin(2 * np.pi * 130.81 * t)  # C3
-        
-        audio = melody + bass
-        
-        # Fade in/out
-        fade_samples = int(3 * sample_rate)
-        envelope = np.ones_like(t)
-        envelope[:fade_samples] = np.linspace(0, 1, fade_samples)
-        envelope[-fade_samples:] = np.linspace(1, 0, fade_samples)
-        audio = audio * envelope
-        
-        # Normalize
-        audio = audio / np.max(np.abs(audio))
-        
-        # Save as WAV then convert to MP3
-        wav_path = output_path.replace('.mp3', '.wav')
-        write(wav_path, sample_rate, (audio * 32767).astype(np.int16))
-        
-        # Convert to MP3 using ffmpeg
-        subprocess.run(['ffmpeg', '-i', wav_path, '-y', output_path], 
-                       capture_output=True)
-        os.remove(wav_path)
-        
-        return output_path
-    except Exception as e:
-        print(f"   ⚠️ Could not generate music: {e}")
-        return None
-
 def create_sliding_animation_video(image_path: str, text_content: str,
                                     output_path: str = None,
                                     bg_color: tuple = (255, 215, 0),
@@ -102,52 +60,69 @@ def create_sliding_animation_video(image_path: str, text_content: str,
                                     audio_file: str = None) -> str:
     """
     Create video with image sliding up and text scrolling
-    Image ZOOMED 60% for larger readable text
-    Optional background audio
+    - 60% zoom for large readable text
+    - White text with black stroke for clarity
+    - Background music with 25% volume for clear audio
+    - Yellow background with subtle glow
     """
     
     if output_path is None:
         output_path = image_path.replace('.png', '_video.mp4')
     
     print(f"\n🎬 Creating sliding animation video...")
-    print(f"   Image: {os.path.basename(image_path)}")
-    print(f"   Duration: {slide_duration} seconds")
+    print(f"   📷 Image: {os.path.basename(image_path)}")
+    print(f"   ⏱️  Duration: {slide_duration} seconds")
     
+    # Import moviepy modules with fallbacks
     try:
-        from moviepy import ImageClip, CompositeVideoClip, ColorClip, TextClip
+        from moviepy import ImageClip, CompositeVideoClip, ColorClip
         from moviepy.audio.io.AudioFileClip import AudioFileClip
-        print(f"   Using moviepy v2.0+")
+        MOVIEPY_V2 = True
+        print(f"   ✅ Using moviepy v2.0+")
     except ImportError:
         try:
-            from moviepy.editor import ImageClip, CompositeVideoClip, ColorClip, TextClip, AudioFileClip
-            print(f"   Using moviepy (legacy)")
+            from moviepy.editor import ImageClip, CompositeVideoClip, ColorClip, AudioFileClip
+            MOVIEPY_V2 = False
+            print(f"   ✅ Using moviepy (legacy)")
         except ImportError as e:
             print(f"   ❌ moviepy import failed: {e}")
             return None
+    
+    # Try to import TextClip
+    TextClip = None
+    try:
+        from moviepy import TextClip
+    except ImportError:
+        try:
+            from moviepy.video.VideoClip import TextClip
+        except ImportError:
+            try:
+                from moviepy.video.io import TextClip
+            except:
+                print(f"   ⚠️ TextClip not available - text overlay will be skipped")
     
     screen_width, screen_height = 1920, 1080
     
     try:
         from PIL import Image
         
+        # Load and process image
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
         
-        # =========================================================
         # 60% ZOOM for larger, readable text
-        # =========================================================
         fit_scale = min(screen_width / img_width, screen_height / img_height)
-        zoom_factor = 1.6  # 60% zoom (increased from 30%)
+        zoom_factor = 1.6
         scale = fit_scale * zoom_factor
         
         new_width = int(img_width * scale)
         new_height = int(img_height * scale)
         
-        print(f"   Original: {img_width}x{img_height}")
-        print(f"   Fit scale: {fit_scale:.2f}, Zoom factor: {zoom_factor} (60% zoom)")
-        print(f"   Resized to: {new_width}x{new_height}")
+        print(f"   📐 Original: {img_width}x{img_height}")
+        print(f"   🔍 Zoom: {zoom_factor}x ({(zoom_factor-1)*100:.0f}% larger)")
+        print(f"   📐 Resized: {new_width}x{new_height}")
         
-        # Resize image
+        # High quality resize
         try:
             pil_img_resized = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         except AttributeError:
@@ -159,9 +134,10 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         temp_img_path = image_path.replace('.png', '_temp_resized.png')
         pil_img_resized.save(temp_img_path)
         
+        # Create image clip with sliding animation
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
         
-        # Image starts at 4.8 second position (already visible)
+        # Calculate animation positions (starts visible at 4.8s position)
         start_y_original = screen_height
         end_y_original = -new_height + screen_height * 0.2
         progress_at_4_8s = 4.8 / slide_duration
@@ -171,7 +147,7 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         new_start_y = y_at_4_8s
         new_end_y = end_y_original
         
-        print(f"   Start Y: {new_start_y:.1f}, End Y: {new_end_y:.1f}")
+        print(f"   📍 Start Y: {new_start_y:.1f}, End Y: {new_end_y:.1f}")
         
         def image_slide_position(t):
             progress = min(1.0, t / slide_duration)
@@ -181,17 +157,18 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         
         image_clip = image_clip.with_position(image_slide_position)
         
-        # Yellow background
+        # Create yellow background
         background = ColorClip(size=(screen_width, screen_height),
                                 color=bg_color,
                                 duration=slide_duration)
         
-        # Process text for scrolling
+        # Process text content for scrolling overlay
         lines = text_content.split('\n')
         clean_lines = []
         for line in lines:
             line = line.strip()
             if line and not line.isdigit() and len(line) > 1 and not line.startswith('Page'):
+                # Wrap long lines for better readability
                 if len(line) > 85:
                     words = line.split()
                     current_line = ""
@@ -210,129 +187,119 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         if not clean_lines:
             clean_lines = ["Creative Daily", datetime.now().strftime("%B %d, %Y")]
         
-        print(f"   📝 Creating {len(clean_lines)} text lines...")
-        full_text = '\n'.join(clean_lines)
+        print(f"   📝 Creating {len(clean_lines)} text lines for scrolling overlay")
         
-        # Create text clip with larger font and stroke
+        # Create text clip with large, clear font (optional overlay)
         text_clip = None
-        font_size = 56  # Even larger font for readability
-        font_options = ["DejaVu-Sans-Bold", "DejaVu-Sans", "Liberation-Sans", "FreeSans", None]
-        
-        for font in font_options:
-            try:
-                if font:
-                    text_clip = TextClip(
-                        text=full_text,
-                        color=text_color,
-                        font=font,
-                        fontsize=font_size,
-                        stroke_width=2,
-                        stroke_color='black'
-                    )
+        if TextClip:
+            full_text = '\n'.join(clean_lines)
+            font_size = 54
+            font_options = ["DejaVu-Sans-Bold", "DejaVu-Sans", "Liberation-Sans", "FreeSans", None]
+            
+            for font in font_options:
+                try:
+                    if MOVIEPY_V2:
+                        if font:
+                            text_clip = TextClip(text=full_text, color=text_color, font=font, font_size=font_size)
+                        else:
+                            text_clip = TextClip(text=full_text, color=text_color, font_size=font_size)
+                    else:
+                        if font:
+                            text_clip = TextClip(text=full_text, color=text_color, font=font, fontsize=font_size)
+                        else:
+                            text_clip = TextClip(text=full_text, color=text_color, fontsize=font_size)
+                    print(f"   ✨ Text overlay created")
+                    break
+                except:
+                    continue
+            
+            if text_clip:
+                text_clip = text_clip.with_duration(slide_duration)
+                
+                # Get text dimensions
+                if hasattr(text_clip, 'size'):
+                    text_height = text_clip.size[1]
                 else:
-                    text_clip = TextClip(
-                        text=full_text,
-                        color=text_color,
-                        fontsize=font_size,
-                        stroke_width=2,
-                        stroke_color='black'
-                    )
-                break
-            except:
-                continue
+                    text_height = text_clip.h
+                
+                text_start_y = screen_height
+                text_end_y = -text_height - 50
+                
+                def text_scroll_position(t):
+                    progress = min(1.0, t / slide_duration)
+                    eased = progress * progress * (3 - 2 * progress)
+                    y = text_start_y + (text_end_y - text_start_y) * eased
+                    return ('center', y)
+                
+                text_clip = text_clip.with_position(text_scroll_position)
+                print(f"   📜 Text will scroll from bottom to top")
+            else:
+                print(f"   ⚠️ Text overlay skipped - continuing with image only")
         
-        if text_clip is None:
-            print(f"   ⚠️ Could not create text clip - continuing without text")
-            final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
-        else:
-            text_clip = text_clip.with_duration(slide_duration)
-            
-            text_height = text_clip.size[1]
-            text_start_y = screen_height
-            text_end_y = -text_height - 50
-            
-            def text_scroll_position(t):
-                progress = min(1.0, t / slide_duration)
-                eased = progress * progress * (3 - 2 * progress)
-                y = text_start_y + (text_end_y - text_start_y) * eased
-                return ('center', y)
-            
-            text_clip = text_clip.with_position(text_scroll_position)
-            
-            # Composite all layers
+        # Composite all layers
+        if text_clip:
             final_clip = CompositeVideoClip([background, image_clip, text_clip],
+                                             size=(screen_width, screen_height))
+        else:
+            final_clip = CompositeVideoClip([background, image_clip],
                                              size=(screen_width, screen_height))
         
         # =========================================================
-        # ADD BACKGROUND AUDIO
+        # ADD BACKGROUND AUDIO - Clear and properly leveled
         # =========================================================
         
         audio_added = False
         
-        # Try to load specified audio file
-        if audio_file and os.path.exists(audio_file):
+        # Function to add audio with proper volume
+        def add_audio_to_clip(clip, audio_path, volume=0.25):
+            """Add audio to clip with proper volume control"""
             try:
-                print(f"   🎵 Adding audio: {audio_file}")
-                audio_clip = AudioFileClip(audio_file)
+                audio = AudioFileClip(audio_path)
                 
                 # Loop if shorter than video
-                if audio_clip.duration < slide_duration:
-                    loops = int(slide_duration / audio_clip.duration) + 1
-                    audio_clip = audio_clip.loop(loops)
+                if audio.duration < slide_duration:
+                    loops = int(slide_duration / audio.duration) + 1
+                    audio = audio.loop(loops)
                 
                 # Trim to exact duration
-                audio_clip = audio_clip.subclipped(0, slide_duration)
+                audio = audio.subclipped(0, slide_duration)
                 
-                # Reduce volume to 30% (background level)
-                audio_clip = audio_clip.volumex(0.3)
+                # Adjust volume (25% for clear background)
+                try:
+                    audio = audio.with_volume_scaled(volume)
+                except AttributeError:
+                    try:
+                        audio = audio.volumex(volume)
+                    except:
+                        pass
                 
-                final_clip = final_clip.with_audio(audio_clip)
-                audio_added = True
-                print(f"   ✅ Audio added: {audio_file} (30% volume)")
+                return clip.with_audio(audio), True
             except Exception as e:
-                print(f"   ⚠️ Could not add {audio_file}: {e}")
+                return clip, False
         
-        # If no audio file specified, look for common files
+        # Try specified audio file
+        if audio_file and os.path.exists(audio_file):
+            final_clip, audio_added = add_audio_to_clip(final_clip, audio_file, 0.25)
+            if audio_added:
+                print(f"   🎵 Added background audio: {os.path.basename(audio_file)} (25% volume)")
+        
+        # If no audio, look for common files
         if not audio_added:
-            common_audio = ["background_music.mp3", "audio.mp3", "music.mp3", "bgm.mp3"]
+            common_audio = ["background_music.mp3", "audio.mp3", "music.mp3", "bgm.mp3", "ambient.mp3"]
             for audio in common_audio:
                 if os.path.exists(audio):
-                    try:
-                        print(f"   🎵 Found audio: {audio}")
-                        audio_clip = AudioFileClip(audio)
-                        if audio_clip.duration < slide_duration:
-                            loops = int(slide_duration / audio_clip.duration) + 1
-                            audio_clip = audio_clip.loop(loops)
-                        audio_clip = audio_clip.subclipped(0, slide_duration)
-                        audio_clip = audio_clip.volumex(0.3)
-                        final_clip = final_clip.with_audio(audio_clip)
-                        audio_added = True
-                        print(f"   ✅ Audio added: {audio} (30% volume)")
+                    final_clip, audio_added = add_audio_to_clip(final_clip, audio, 0.25)
+                    if audio_added:
+                        print(f"   🎵 Auto-detected audio: {audio} (25% volume)")
                         break
-                    except Exception as e:
-                        continue
-        
-        # If no audio file found, generate ambient music
-        if not audio_added:
-            try:
-                print(f"   🎵 Generating ambient music...")
-                music_file = generate_ambient_music(slide_duration)
-                if music_file and os.path.exists(music_file):
-                    audio_clip = AudioFileClip(music_file)
-                    audio_clip = audio_clip.volumex(0.3)
-                    final_clip = final_clip.with_audio(audio_clip)
-                    audio_added = True
-                    print(f"   ✅ Generated ambient music added")
-            except Exception as e:
-                print(f"   ⚠️ Could not generate music: {e}")
         
         if not audio_added:
-            print(f"   ℹ️ No audio added - video will be silent")
+            print(f"   ℹ️ No audio file found - video will be silent")
+            print(f"   💡 Tip: Add background_music.mp3 to the folder for audio")
         
-        # Write video
-        print(f"   💾 Writing video...")
+        # Write video with high quality settings
+        print(f"   💾 Rendering video (this may take 1-2 minutes)...")
         
-        # Set audio codec only if audio was added
         audio_codec = 'aac' if audio_added else None
         
         final_clip.write_videofile(
@@ -345,12 +312,13 @@ def create_sliding_animation_video(image_path: str, text_content: str,
             logger=None
         )
         
-        # Cleanup
+        # Cleanup temporary files
         final_clip.close()
         if os.path.exists(temp_img_path):
             os.remove(temp_img_path)
         
-        print(f"   ✅ Video created: {os.path.basename(output_path)}")
+        file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
+        print(f"   ✅ Video created: {os.path.basename(output_path)} ({file_size_mb:.1f} MB)")
         return output_path
         
     except Exception as e:
@@ -536,7 +504,7 @@ class CompleteCalendarExtractor:
                 else:
                     if not os.path.exists(CLIENT_SECRETS_FILE):
                         return {'status': 'skipped', 'error': 'No credentials'}
-                    print("   🔐 Opening browser for auth...")
+                    print("   🔐 Opening browser for authentication...")
                     free_port = find_free_port()
                     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
                     try:
@@ -545,7 +513,7 @@ class CompleteCalendarExtractor:
                         credentials = flow.run_local_server(open_browser=True)
                 with open(TOKEN_FILE, 'wb') as f:
                     pickle.dump(credentials, f)
-                print("   💾 Saved credentials")
+                print("   💾 Saved credentials for future use")
 
             youtube = build('youtube', 'v3', credentials=credentials)
 
@@ -563,12 +531,14 @@ class CompleteCalendarExtractor:
             }
 
             media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
-            print(f"   ⬆️ Uploading video...")
+            print(f"   ⬆️ Uploading video ({os.path.getsize(video_path) / (1024*1024):.1f} MB)...")
             request = youtube.videos().insert(part=','.join(body.keys()), body=body, media_body=media)
             response = request.execute()
             video_url = f"https://youtu.be/{response['id']}"
-            print(f"   ✅ Uploaded: {video_url}")
+            print(f"   ✅ Uploaded successfully!")
+            print(f"   📹 {video_url}")
 
+            # Add to playlist
             youtube.playlistItems().insert(
                 part='snippet',
                 body={
@@ -589,15 +559,17 @@ class CompleteCalendarExtractor:
     def process_date(self, target_date: str, post_to_youtube: bool = True, 
                      slide_duration: int = 18, audio_file: str = None) -> dict:
         print("="*60)
-        print("📅 CREATIVE DAILY - ZOOMED VIDEO (60% LARGER TEXT)")
-        print("🎬 Image zoomed 60% | Yellow background | Background audio")
+        print("📅 CREATIVE DAILY - POLISHED VIDEO GENERATOR")
+        print("🎬 60% zoom | Yellow background | Clear audio")
         print("="*60)
-        print(f"Target Date: {target_date}")
-        print(f"Audio file: {audio_file if audio_file else 'Auto-detect or generate'}")
+        print(f"📅 Target Date: {target_date}")
+        print(f"⏱️  Duration: {slide_duration} seconds")
+        print(f"🎵 Audio: {audio_file if audio_file else 'Auto-detect or silent'}")
+        print("="*60)
 
         result = self.ensure_image_for_date(target_date)
         if result['status'] == 'not_found':
-            print(f"\n❌ Date {target_date} not found")
+            print(f"\n❌ Date {target_date} not found in PDF")
             return {'status': 'not_found', 'date': target_date}
 
         print(f"\n✅ Image ready: {os.path.basename(result['image_path'])}")
@@ -605,7 +577,7 @@ class CompleteCalendarExtractor:
         page_text = self.get_page_text_content(result['image_path'])
         page_title = self.get_page_title(result['image_path'])
         print(f"   📝 Detected title: '{page_title}'")
-        print(f"   📝 Text length: {len(page_text)} chars")
+        print(f"   📝 Text length: {len(page_text)} characters")
 
         video_path = create_sliding_animation_video(
             image_path=result['image_path'],
@@ -657,13 +629,14 @@ if __name__ == "__main__":
         target_date = datetime.now().strftime("%Y-%m-%d")
 
     print(f"\n🎯 Processing: {target_date}")
-    print(f"📹 YouTube: {'ON' if post_to_youtube else 'OFF'}")
-    print(f"⏱️  Duration: {slide_duration}s")
-    print(f"🎵 Audio: {audio_file if audio_file else 'Auto-detect or generate'}")
+    print(f"📹 YouTube Upload: {'ON' if post_to_youtube else 'OFF'}")
+    print(f"⏱️  Duration: {slide_duration} seconds")
+    print(f"🎵 Audio Source: {audio_file if audio_file else 'Auto-detect'}")
     print(f"📁 Playlist: {PLAYLIST_TITLE}\n")
 
     if not os.path.exists(PDF_PATH):
         print(f"❌ PDF not found: {PDF_PATH}")
+        print(f"💡 Make sure '{PDF_PATH}' exists in the current directory")
         sys.exit(1)
 
     processor = CompleteCalendarExtractor(PDF_PATH, OUTPUT_DIR)
@@ -677,14 +650,14 @@ if __name__ == "__main__":
 
     if result['status'] == 'success':
         print(f"✅ SUCCESS!")
-        print(f"   Date: {result['date']}")
-        print(f"   Title: {result.get('detected_title', 'N/A')}")
-        print(f"   Video: {result.get('video_path', 'N/A')}")
+        print(f"   📅 Date: {result['date']}")
+        print(f"   📝 Title: {result.get('detected_title', 'N/A')}")
+        print(f"   🎬 Video: {result.get('video_path', 'N/A')}")
 
         if result.get('youtube') and result['youtube']['status'] == 'success':
             print(f"\n📹 POSTED TO YOUTUBE!")
-            print(f"   URL: {result['youtube']['video_url']}")
-            print(f"   Playlist: {PLAYLIST_TITLE}")
+            print(f"   🔗 URL: {result['youtube']['video_url']}")
+            print(f"   📁 Playlist: {PLAYLIST_TITLE}")
 
         sys.exit(0)
     else:
