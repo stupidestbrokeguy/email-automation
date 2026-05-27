@@ -1,7 +1,7 @@
 """
 Creative Daily - Complete Working Script
 Extracts from PDF, creates sliding animation video, uploads to YouTube
-IMAGE FITS WITHIN SCREEN (no stretching) + BLACK BARS ON SIDES
+IMAGE SLIGHTLY ZOOMED (30%) + YELLOW BACKGROUND + SCROLLING TEXT
 """
 
 import os
@@ -49,11 +49,12 @@ def detect_page_title(page_text: str) -> str:
 
 def create_sliding_animation_video(image_path: str, text_content: str,
                                     output_path: str = None,
+                                    bg_color: tuple = (255, 215, 0),
                                     text_color: str = "white",
                                     slide_duration: int = 18) -> str:
     """
     Create video with image sliding up and text scrolling
-    Image fits within screen (no stretching) - black bars on sides
+    Image slightly zoomed (30%) with yellow background
     """
     
     if output_path is None:
@@ -63,7 +64,6 @@ def create_sliding_animation_video(image_path: str, text_content: str,
     print(f"   Image: {os.path.basename(image_path)}")
     print(f"   Duration: {slide_duration} seconds")
     
-    # Import moviepy
     try:
         from moviepy import ImageClip, CompositeVideoClip, ColorClip, TextClip
         print(f"   Using moviepy v2.0+")
@@ -83,15 +83,18 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
         
-        # Scale to fit screen while maintaining aspect ratio
-        scale = min(screen_width / img_width, screen_height / img_height)
+        # Slight zoom (30% larger than fit-to-screen)
+        fit_scale = min(screen_width / img_width, screen_height / img_height)
+        zoom_factor = 1.3
+        scale = fit_scale * zoom_factor
+        
         new_width = int(img_width * scale)
         new_height = int(img_height * scale)
         
         print(f"   Original: {img_width}x{img_height}")
-        print(f"   Resized: {new_width}x{new_height}")
+        print(f"   Fit scale: {fit_scale:.2f}, Zoom factor: {zoom_factor}")
+        print(f"   Resized to: {new_width}x{new_height}")
         
-        # Resize image
         try:
             pil_img_resized = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         except AttributeError:
@@ -103,12 +106,10 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         temp_img_path = image_path.replace('.png', '_temp_resized.png')
         pil_img_resized.save(temp_img_path)
         
-        # Image clip with slide animation
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
         
-        # Start below screen, end showing bottom portion
         start_y = screen_height
-        end_y = -new_height + screen_height * 0.15
+        end_y = -new_height + screen_height * 0.2
         
         def image_slide_position(t):
             progress = min(1.0, t / slide_duration)
@@ -118,9 +119,9 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         
         image_clip = image_clip.with_position(image_slide_position)
         
-        # Black background (creates letterbox effect)
+        # YELLOW background
         background = ColorClip(size=(screen_width, screen_height),
-                                color=(0, 0, 0),
+                                color=bg_color,
                                 duration=slide_duration)
         
         # Process text
@@ -149,7 +150,6 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         
         full_text = '\n'.join(clean_lines)
         
-        # Create text clip
         text_clip = None
         font_size = 52
         font_options = ["DejaVu-Sans-Bold", "DejaVu-Sans", "Liberation-Sans", "FreeSans", None]
@@ -199,11 +199,10 @@ def create_sliding_animation_video(image_path: str, text_content: str,
         
         text_clip = text_clip.with_position(text_scroll_position)
         
-        # Composite
         final_clip = CompositeVideoClip([background, image_clip, text_clip],
                                          size=(screen_width, screen_height))
         
-        # Write video
+        print(f"   💾 Writing video...")
         final_clip.write_videofile(
             output_path,
             codec='libx264',
@@ -453,8 +452,8 @@ class CompleteCalendarExtractor:
 
     def process_date(self, target_date: str, post_to_youtube: bool = True, slide_duration: int = 18) -> dict:
         print("="*60)
-        print("📅 CREATIVE DAILY - LETTERBOX VIDEO")
-        print("🎬 Image fits screen | Black bars on sides | Text scrolls")
+        print("📅 CREATIVE DAILY - YELLOW BACKGROUND VIDEO")
+        print("🎬 Image slightly zoomed | Yellow background | Text scrolls")
         print("="*60)
         print(f"Target Date: {target_date}")
 
