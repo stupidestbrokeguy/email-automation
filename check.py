@@ -701,6 +701,11 @@ class CompleteCalendarExtractor:
 - Help a stranger improve their chances to access this video and get today's message of the Creative Daily that fastracks them to collecting their first royalty, Please - | Like/Share this video |
 - Have you successfuly finished doing today's Creative Daily Assignment? Please share your screenshots and comment on this post to motivate a someone in our commnity to continou practising, Please - | Leave a comment on this video and Tag #creativedaily when you post |
 
+Follow Our Official Social Media Handles
+
+- Official Youtube Channel - (https://www.youtube.com/@stupidestbrokeguy)
+- Official Tiktok Channel - (https://www.tiktok.com/@stupidestbrokeguy)
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✨{main_title} |  {formatted_date} | Creative Daily | Stupid Orange | Stupidest Broke Guy
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
