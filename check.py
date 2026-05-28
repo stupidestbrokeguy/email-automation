@@ -60,7 +60,7 @@ def detect_page_title(page_text: str) -> str:
     print(f"   🔍 DEBUG: No title found, using default")
     return "Creative Daily"
 
-def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 1.5) -> str:
+def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 2.0) -> str:
     """
     Extract thumbnail from video - cropping to JUST the image content (no yellow background)
     
