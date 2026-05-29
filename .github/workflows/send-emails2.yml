@@ -5,8 +5,8 @@ on:
     # Runs every day at 10:00 AM UTC (2:00 PM Dubai time)
     - cron: '0 12 * * *'
   # Manual trigger from GitHub UI
-  # workflow_dispatch:
-  # # Runs when you push to main (for testing)
+  workflow_dispatch:
+  # Runs when you push to main (for testing)
   # push:
   #   branches: [ master ]
 
@@ -39,11 +39,33 @@ jobs:
         python -m pip install --upgrade pip
         pip install pandas openpyxl
     
+    - name: Verify required files exist
+      run: |
+        echo "📁 Checking required files..."
+        if [ ! -f "email_automation2.py" ]; then
+          echo "❌ email_automation2.py not found!"
+          exit 1
+        fi
+        echo "✅ email_automation2.py found"
+        
+        # Check for Excel file (adjust filename as needed)
+        if [ -f "*.xlsx" ]; then
+          echo "✅ Excel data file found"
+        else
+          echo "⚠️ No Excel file found, but continuing..."
+        fi
+    
     - name: Send daily email batch
       env:
         EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        # Optional: Add these if your script uses them
+        EMAIL_USER: ${{ secrets.EMAIL_USER }}
+        SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+        SMTP_PORT: ${{ secrets.SMTP_PORT }}
       run: |
+        echo "📧 Starting email automation..."
         python email_automation2.py
+        echo "✅ Email script completed"
     
     - name: Upload progress files (backup)
       uses: actions/upload-artifact@v4
@@ -54,6 +76,7 @@ jobs:
           send_progress2.json
           email_sending_log2.txt
           failed_batch2_*.xlsx
+          *.log
         retention-days: 30
     
     - name: Commit and push progress
@@ -61,19 +84,46 @@ jobs:
       env:
         PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
+        # Configure git
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
         
-        # Use PAT token instead of GITHUB_TOKEN
-        git remote set-url origin https://stupidestbrokeguy:${PAT_TOKEN}@github.com/stupidestbrokeguy/email-automation.git
+        # Check if PAT_TOKEN exists
+        if [ -z "${PAT_TOKEN}" ]; then
+          echo "⚠️ PAT_TOKEN secret not set! Attempting with GITHUB_TOKEN..."
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+        else
+          echo "✅ Using PAT_TOKEN for authentication"
+          git remote set-url origin https://stupidestbrokeguy:${PAT_TOKEN}@github.com/stupidestbrokeguy/email-automation.git
+        fi
         
-        git pull origin master --no-rebase || true
+        # Pull latest changes to avoid conflicts
+        echo "📥 Pulling latest changes..."
+        git pull origin master --no-rebase --allow-unrelated-histories || true
+        
+        # Stage progress files
+        echo "📝 Staging files for commit..."
         git add send_progress2.json email_sending_log2.txt 2>/dev/null || true
         
+        # Check if there are changes
         if ! git diff --cached --quiet; then
-          git commit -m "Update emails [skip ci]"
+          echo "💾 Committing changes..."
+          git commit -m "Update email automation progress [skip ci] - $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "⬆️ Pushing to master..."
           git push origin HEAD:master
           echo "✅ Progress pushed successfully!"
         else
           echo "ℹ️ No changes to commit"
         fi
+    
+    - name: Debug - List files after run
+      if: always()
+      run: |
+        echo "📁 Files after email run:"
+        ls -la
+        echo ""
+        echo "📊 Progress files:"
+        ls -la send_progress2.json email_sending_log2.txt 2>/dev/null || echo "No progress files yet"
+        echo ""
+        echo "📋 Failed batches:"
+        ls -la failed_batch2_*.xlsx 2>/dev/null || echo "No failed batches"
