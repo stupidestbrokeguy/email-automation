@@ -7,6 +7,8 @@ on:
     # 5:00 UTC = 9:00 UAE
     - cron: '0 5 * * *'
   workflow_dispatch:  # Allow manual trigger
+    push:
+    branches: [ main, master ]
 
 jobs:
   create-and-upload:
