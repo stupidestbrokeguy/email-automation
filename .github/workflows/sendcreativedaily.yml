@@ -3,9 +3,9 @@ name: Daily Creative Daily YouTube Upload
 on:
   schedule:
     - cron: '0 6 * * *'
-  workflow_dispatch:
-  push:
-    branches: [ main, master ]
+  # workflow_dispatch:
+  # push:
+  #   branches: [ main, master ]
 
 jobs:
   send-creativedaily:
