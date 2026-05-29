@@ -80,7 +80,7 @@ jobs:
       run: |
         TODAY=$(date +'%Y-%m-%d')
         echo "📅 Processing date: $TODAY"
-        python check.py 2026-06-09
+        python check.py $TODAY
       env:
         # Pass as environment variables for debugging
         PYTHONUNBUFFERED: 1
