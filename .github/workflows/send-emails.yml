@@ -5,8 +5,8 @@ on:
     # Runs every day at 10:00 AM UTC (2:00 PM Dubai time)
     - cron: '0 12 * * *'
   # Manual trigger from GitHub UI
-  # workflow_dispatch:
-  # # Runs when you push to main (for testing)
+  workflow_dispatch:
+  # Runs when you push to main (for testing)
   # push:
   #   branches: [ master ]
 
@@ -39,21 +39,50 @@ jobs:
         python -m pip install --upgrade pip
         pip install pandas openpyxl
     
+    - name: Verify required files exist
+      run: |
+        echo "📁 Checking required files for Real Estate automation..."
+        if [ ! -f "email_automation.py" ]; then
+          echo "❌ email_automation.py not found!"
+          echo "📁 Available Python files:"
+          ls -la *.py 2>/dev/null || echo "No Python files found"
+          exit 1
+        fi
+        echo "✅ email_automation.py found"
+        
+        # Check for Excel file
+        if ls *.xlsx 1> /dev/null 2>&1; then
+          echo "✅ Excel data file(s) found:"
+          ls -la *.xlsx
+        else
+          echo "⚠️ No Excel file found, but continuing..."
+        fi
+    
     - name: Send daily email batch
       env:
         EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        # Optional: Add these if your script uses them
+        EMAIL_USER: ${{ secrets.EMAIL_USER }}
+        SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+        SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        AUTOMATION_TYPE: "real-estate"
       run: |
+        echo "📧 Starting Real Estate email automation..."
+        echo "🕐 Time: $(date)"
+        echo "🔐 Email password configured: ${{ secrets.EMAIL_PASSWORD != '' && 'Yes' || 'No' }}"
         python email_automation.py
+        echo "✅ Real Estate email script completed"
     
     - name: Upload progress files (backup)
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: email-progress-${{ github.run_id }}
+        name: real-estate-email-progress-${{ github.run_id }}
         path: |
           send_progress.json
           email_sending_log.txt
           failed_batch_*.xlsx
+          *.log
         retention-days: 30
     
     - name: Commit and push progress
@@ -61,19 +90,66 @@ jobs:
       env:
         PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
+        # Configure git
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
         
-        # Use PAT token instead of GITHUB_TOKEN
-        git remote set-url origin https://stupidestbrokeguy:${PAT_TOKEN}@github.com/stupidestbrokeguy/email-automation.git
+        # Check if PAT_TOKEN exists
+        if [ -z "${PAT_TOKEN}" ]; then
+          echo "⚠️ PAT_TOKEN secret not set! Attempting with GITHUB_TOKEN..."
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+        else
+          echo "✅ Using PAT_TOKEN for authentication"
+          git remote set-url origin https://stupidestbrokeguy:${PAT_TOKEN}@github.com/stupidestbrokeguy/email-automation.git
+        fi
         
-        git pull origin master --no-rebase || true
+        # Pull latest changes to avoid conflicts
+        echo "📥 Pulling latest changes..."
+        git pull origin master --no-rebase --allow-unrelated-histories || true
+        
+        # Stage progress files (only if they exist)
+        echo "📝 Staging files for commit..."
         git add send_progress.json email_sending_log.txt 2>/dev/null || true
+        git add failed_batch_*.xlsx 2>/dev/null || true
         
+        # Check if there are changes
         if ! git diff --cached --quiet; then
-          git commit -m "Update emails [skip ci]"
+          echo "💾 Committing changes..."
+          git commit -m "Update real estate email progress [skip ci] - $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "⬆️ Pushing to master..."
           git push origin HEAD:master
           echo "✅ Progress pushed successfully!"
         else
           echo "ℹ️ No changes to commit"
         fi
+    
+    - name: Debug - List files after run
+      if: always()
+      run: |
+        echo "📁 Files after real estate email run:"
+        ls -la
+        echo ""
+        echo "📊 Progress files:"
+        ls -la send_progress.json email_sending_log.txt 2>/dev/null || echo "No progress files yet"
+        echo ""
+        echo "📋 Failed batches:"
+        ls -la failed_batch_*.xlsx 2>/dev/null || echo "No failed batches"
+        echo ""
+        echo "📈 Batch statistics (if available):"
+        if [ -f "send_progress.json" ]; then
+          echo "Current progress:"
+          cat send_progress.json | python -m json.tool 2>/dev/null || echo "Unable to parse JSON"
+        fi
+        if [ -f "email_sending_log.txt" ]; then
+          echo ""
+          echo "📝 Last 5 log lines:"
+          tail -5 email_sending_log.txt 2>/dev/null || echo "Log file empty"
+        fi
+    
+    - name: Send failure notification (optional)
+      if: failure()
+      run: |
+        echo "❌ Real Estate email automation failed!"
+        echo "Check the logs above for details."
+        # You can add webhook notifications here if needed
+        # Example: curl -X POST ${{ secrets.SLACK_WEBHOOK }} -d '{"text":"Real Estate email failed!"}'
