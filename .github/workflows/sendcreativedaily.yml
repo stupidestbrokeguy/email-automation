@@ -3,7 +3,7 @@ name: Daily Creative Daily YouTube Upload
 on:
   schedule:
     - cron: '0 6 * * *'
-  # workflow_dispatch:
+  workflow_dispatch:  # Enable manual trigger for testing
   # push:
   #   branches: [ main, master ]
 
@@ -38,33 +38,67 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y ffmpeg
     
-    - name: Create client_secrets.json from secret
+    - name: Decode and create client_secrets.json
       run: |
-        echo '${{ secrets.YOUTUBE_CLIENT_SECRETS }}' > client_secrets.json
-        echo "✅ client_secrets.json created"
+        if [ -z "${{ secrets.CLIENT_SECRETS_JSON }}" ]; then
+          echo "❌ ERROR: CLIENT_SECRETS_JSON secret is missing!"
+          exit 1
+        fi
+        echo "${{ secrets.CLIENT_SECRETS_JSON }}" | base64 -d > client_secrets.json
+        echo "✅ client_secrets.json created ($(wc -c < client_secrets.json) bytes)"
     
-    - name: Decode token from secret
+    - name: Decode and create token.pickle
       run: |
-        echo "${{ secrets.YOUTUBE_TOKEN_BASE64 }}" | base64 -d > token.pickle
-        echo "✅ token.pickle restored"
+        if [ -z "${{ secrets.YOUTUBE_TOKEN }}" ]; then
+          echo "❌ ERROR: YOUTUBE_TOKEN secret is missing!"
+          exit 1
+        fi
+        echo "${{ secrets.YOUTUBE_TOKEN }}" | base64 -d > token.pickle
+        echo "✅ token.pickle restored ($(wc -c < token.pickle) bytes)"
     
     - name: Verify PDF exists
       run: |
-        if [ ! -f your_document.pdf ]; then
-          echo "❌ PDF file not found!"
+        # Update this to your actual PDF filename
+        PDF_FILE="your_document.pdf"  # ← CHANGE THIS TO YOUR PDF NAME
+        if [ ! -f "$PDF_FILE" ]; then
+          echo "❌ PDF file '$PDF_FILE' not found!"
+          echo "📁 Available files:"
+          ls -la
           exit 1
         fi
-        echo "✅ PDF file found ($(du -h your_document.pdf | cut -f1))"
+        echo "✅ PDF file found: $PDF_FILE ($(du -h $PDF_FILE | cut -f1))"
+    
+    - name: List directory contents (debug)
+      run: |
+        echo "📁 Current directory contents:"
+        ls -la
+        echo ""
+        echo "📁 Python files:"
+        ls -la *.py 2>/dev/null || echo "No Python files found in root"
     
     - name: Run Creative Daily script
       run: |
         TODAY=$(date +'%Y-%m-%d')
         echo "📅 Processing date: $TODAY"
         python check.py $TODAY
+      env:
+        # Pass as environment variables for debugging
+        PYTHONUNBUFFERED: 1
     
     - name: Upload video as artifact
+      if: always()  # Upload even if script fails
       uses: actions/upload-artifact@v4
       with:
         name: creative-daily-video
         path: extracted_date_pages/*.mp4
         retention-days: 30
+    
+    - name: Upload logs if failed
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: error-logs
+        path: |
+          *.log
+          extracted_date_pages/*.txt
+        retention-days: 7
