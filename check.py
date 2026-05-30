@@ -8,7 +8,7 @@ FEATURES:
 - Background music support
 - GitHub artifact upload
 - AUTO THUMBNAIL from image content (no yellow background)
-- RANDOM VIDEO DURATION: 17-21 seconds for organic feel
+- RANDOM VIDEO DURATION (17-21 seconds)
 """
 
 import os
@@ -839,7 +839,7 @@ Follow Our Official Social Media Handles
 
     def process_date(self, target_date: str, post_to_youtube: bool = True, 
                      slide_duration: int = None, audio_file: str = None) -> dict:
-        # If no duration specified, generate random between 17-21
+        # Generate random duration if not specified
         if slide_duration is None:
             slide_duration = random.randint(17, 21)
             print(f"🎲 RANDOM DURATION: {slide_duration} seconds (17-21 range)")
