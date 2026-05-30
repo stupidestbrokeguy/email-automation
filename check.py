@@ -6,8 +6,8 @@ FEATURES:
 - 60% zoomed image for large readable text
 - Yellow background
 - Background music support
-- THUMBNAIL: FIXED 25 seconds capture, LANDSCAPE format (1920x1080)
-- Random video duration (17-21 seconds) - video only
+- VIDEO DURATION: FIXED 25 seconds
+- THUMBNAIL: Captured at 5 seconds, LANDSCAPE format (1920x1080)
 """
 
 import os
@@ -15,7 +15,6 @@ import re
 import sys
 import pickle
 import socket
-import random
 from datetime import datetime
 import fitz  # PyMuPDF
 
@@ -24,6 +23,8 @@ PLAYLIST_TITLE = "Creative Daily | Stupid Orange | Stupidest Broke Guy"
 PLAYLIST_DESCRIPTION = """Welcome to the Official Playlist of the Creative Daily from Stupid Orange. Here you will keep up to date with the message from Stupidest Broke Guy helping people to start collecting royalties from their creativity and live a true royal lifestyle.
 
 #Dubai #creativedaily #stupidestbrokeguy #UAE"""
+VIDEO_DURATION = 25  # FIXED - NO RANDOM
+THUMBNAIL_CAPTURE_TIME = 5.0  # Capture thumbnail at 5 seconds
 # ===================================
 
 def find_free_port(start_port=8080, end_port=8090):
@@ -84,13 +85,13 @@ def extract_date_from_top_of_page(page_text: str) -> str:
 
 def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 5.0) -> str:
     """
-    Extract thumbnail from video - FIXED at 25 seconds,
+    Extract thumbnail from video - captured at 5 seconds,
     crops yellow background, stretches to fill landscape format (1920x1080)
     """
     print(f"\n🎬 Extracting thumbnail from video...")
     print(f"   📹 Video: {video_path}")
-    print(f"   ⏱️  Time: {time_seconds} seconds (FIXED)")
-    print(f"   📐 Target format: Landscape (1920x1080) - standard YouTube thumbnail")
+    print(f"   ⏱️  Time: {time_seconds} seconds")
+    print(f"   📐 Target format: Landscape (1920x1080)")
     
     if output_path is None:
         output_path = video_path.replace('.mp4', '_thumbnail.png')
@@ -169,15 +170,15 @@ def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_
 def create_sliding_animation_video(image_path: str, text_content: str = None,
                                     output_path: str = None,
                                     bg_color: tuple = (255, 215, 0),
-                                    slide_duration: int = 18,
+                                    slide_duration: int = 25,
                                     audio_file: str = None) -> str:
-    """Create video with image sliding up and audio"""
+    """Create video with image sliding up and audio - FIXED 25 seconds"""
     
     if output_path is None:
         output_path = image_path.replace('.png', '_video.mp4')
     
     print(f"\n🎬 Creating video: {os.path.basename(image_path)}")
-    print(f"   ⏱️  Duration: {slide_duration} seconds")
+    print(f"   ⏱️  Duration: {slide_duration} seconds (FIXED)")
     
     try:
         from moviepy import ImageClip, CompositeVideoClip, ColorClip
@@ -465,8 +466,8 @@ class CompleteCalendarExtractor:
             video_url = f"https://youtu.be/{response['id']}"
             print(f"   ✅ Uploaded! URL: {video_url}")
 
-            # Extract and upload thumbnail - FIXED at 25 seconds, LANDSCAPE format
-            thumbnail_path = extract_thumbnail_from_video(video_path, time_seconds=25.0)
+            # Extract and upload thumbnail - at 5 seconds, LANDSCAPE format
+            thumbnail_path = extract_thumbnail_from_video(video_path, time_seconds=5.0)
             if thumbnail_path and os.path.exists(thumbnail_path):
                 try:
                     youtube.thumbnails().set(
@@ -474,7 +475,7 @@ class CompleteCalendarExtractor:
                         media_body=MediaFileUpload(thumbnail_path)
                     ).execute()
                     os.remove(thumbnail_path)
-                    print(f"   ✅ Thumbnail uploaded (FIXED 25 seconds, LANDSCAPE 1920x1080)")
+                    print(f"   ✅ Thumbnail uploaded (5 seconds, LANDSCAPE 1920x1080)")
                 except Exception as e:
                     print(f"   ⚠️ Thumbnail error: {e}")
 
@@ -497,15 +498,12 @@ class CompleteCalendarExtractor:
             return {'status': 'failed', 'error': str(e)}
 
     def process_date(self, target_date: str, post_to_youtube: bool = True, 
-                     slide_duration: int = None, audio_file: str = None) -> dict:
-        if slide_duration is None:
-            slide_duration = random.randint(17, 21)
-            print(f"🎲 Random video duration: {slide_duration}s (17-21 range)")
+                     slide_duration: int = 25, audio_file: str = None) -> dict:
         
         print("="*60)
         print(f"📅 Creative Daily - {target_date}")
-        print(f"⏱️  Video Duration: {slide_duration}s (random 17-21)")
-        print(f"🖼️  Thumbnail: FIXED 25 seconds, LANDSCAPE (1920x1080)")
+        print(f"⏱️  Video Duration: {slide_duration} seconds (FIXED)")
+        print(f"🖼️  Thumbnail: 5 seconds, LANDSCAPE (1920x1080)")
         print(f"🎵 Audio: {audio_file if audio_file else 'Auto-detect'}")
         print(f"📹 YouTube: {'ON' if post_to_youtube else 'OFF'}")
         print("="*60)
@@ -555,10 +553,11 @@ if __name__ == "__main__":
     
     PDF_PATH = "your_document.pdf"
     OUTPUT_DIR = "extracted_date_pages"
-
+    VIDEO_DURATION = 25  # FIXED
+    
     target_date = None
     post_to_youtube = True
-    slide_duration = None
+    slide_duration = VIDEO_DURATION  # FIXED
     audio_file = None
 
     # Parse arguments
@@ -566,9 +565,6 @@ if __name__ == "__main__":
         if arg == "--no-youtube":
             post_to_youtube = False
             print("📹 YouTube upload disabled")
-        elif arg.startswith("--duration="):
-            slide_duration = int(arg.split("=")[1])
-            print(f"⏱️ Video duration set to {slide_duration}s")
         elif arg.startswith("--audio="):
             audio_file = arg.split("=")[1]
             print(f"🎵 Audio file: {audio_file}")
@@ -579,19 +575,14 @@ if __name__ == "__main__":
             target_date = arg
             print(f"📅 Target date: {target_date}")
 
-    # Default to random video duration (17-21 seconds)
-    if slide_duration is None:
-        slide_duration = random.randint(17, 21)
-        print(f"🎲 Random video duration: {slide_duration}s (17-21 range)")
-
     # Default to today
     if target_date is None:
         target_date = datetime.now().strftime("%Y-%m-%d")
         print(f"📅 Using today: {target_date}")
 
     print(f"\n🎯 Final: {target_date}")
-    print(f"   📹 Video duration: {slide_duration}s (RANDOM 17-21)")
-    print(f"   🖼️ Thumbnail capture: FIXED 25 seconds, LANDSCAPE 1920x1080")
+    print(f"   📹 Video duration: {VIDEO_DURATION}s (FIXED)")
+    print(f"   🖼️ Thumbnail capture: 5 seconds, LANDSCAPE 1920x1080")
 
     # Check PDF
     if not os.path.exists(PDF_PATH):
@@ -604,7 +595,7 @@ if __name__ == "__main__":
     # Process
     processor = CompleteCalendarExtractor(PDF_PATH, OUTPUT_DIR)
     result = processor.process_date(target_date, post_to_youtube, 
-                                     slide_duration=slide_duration, 
+                                     slide_duration=VIDEO_DURATION, 
                                      audio_file=audio_file)
 
     print("\n" + "="*60)
@@ -615,8 +606,8 @@ if __name__ == "__main__":
         print(f"✅ SUCCESS!")
         print(f"   📅 Date: {result['date']}")
         print(f"   🎬 Video: {result.get('video_path', 'N/A')}")
-        print(f"   ⏱️ Video length: {slide_duration}s")
-        print(f"   🖼️ Thumbnail: FIXED 25 seconds, LANDSCAPE 1920x1080")
+        print(f"   ⏱️ Video length: {VIDEO_DURATION}s (FIXED)")
+        print(f"   🖼️ Thumbnail: 5 seconds, LANDSCAPE 1920x1080")
         
         if result.get('youtube') and result['youtube']['status'] == 'success':
             print(f"\n📹 POSTED TO YOUTUBE!")
