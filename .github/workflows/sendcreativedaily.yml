@@ -2,15 +2,14 @@ name: Creative Daily YouTube Upload
 
 on:
   schedule:
-    # Runs every day at 6:00 AM UTC (10:00 AM Dubai time)
     - cron: '0 6 * * *'
-  # Manual trigger from GitHub UI
   workflow_dispatch:
     inputs:
       target_date:
         description: 'Target date (YYYY-MM-DD) - leave empty for today'
         required: false
         type: string
+        default: ''
       no_youtube:
         description: 'Skip YouTube upload'
         required: false
@@ -53,7 +52,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y ffmpeg
     
-    - name: Decode and create client_secrets.json
+    - name: Decode client_secrets.json
       run: |
         if [ -z "${{ secrets.CLIENT_SECRETS_JSON }}" ]; then
           echo "⚠️ No CLIENT_SECRETS_JSON secret found"
@@ -62,16 +61,14 @@ jobs:
           echo "✅ client_secrets.json created"
         fi
     
-    - name: Decode and create token.pickle
+    - name: Decode token.pickle
       run: |
         if [ -n "${{ secrets.YOUTUBE_TOKEN }}" ]; then
           echo "${{ secrets.YOUTUBE_TOKEN }}" | base64 -d > token.pickle
           echo "✅ token.pickle restored"
-        else
-          echo "⚠️ No token.pickle secret found"
         fi
     
-    - name: Setup PDF file
+    - name: Setup PDF
       run: |
         if [ -f "your_document.pdf" ]; then
           echo "✅ Found PDF: your_document.pdf"
@@ -81,98 +78,33 @@ jobs:
           exit 1
         fi
     
-    - name: Run Creative Daily script
-      id: creative_daily
+    - name: Run Creative Daily
       run: |
-        TODAY=$(date +%Y-%m-%d)
-        echo "📅 Today's date: $TODAY"
-        
-        TARGET_DATE="${{ github.event.inputs.target_date }}"
-        NO_YOUTUBE="${{ github.event.inputs.no_youtube }}"
-        DURATION="${{ github.event.inputs.duration }}"
-        
-        COMMAND="python check.py"
-        
-        if [ -n "$TARGET_DATE" ] && [ "$TARGET_DATE" != "null" ]; then
-          COMMAND="$COMMAND $TARGET_DATE"
-          echo "🎯 Using custom date: $TARGET_DATE"
+        if [ -n "${{ github.event.inputs.target_date }}" ] && [ "${{ github.event.inputs.target_date }}" != "" ]; then
+          TARGET_DATE="${{ github.event.inputs.target_date }}"
         else
-          COMMAND="$COMMAND $TODAY"
-          echo "📅 Using today's date: $TODAY"
+          TARGET_DATE=$(date +%Y-%m-%d)
         fi
         
-        if [ "$NO_YOUTUBE" = "true" ]; then
-          COMMAND="$COMMAND --no-youtube"
-          echo "📹 YouTube upload disabled"
+        CMD="python check.py $TARGET_DATE"
+        
+        if [ "${{ github.event.inputs.no_youtube }}" = "true" ]; then
+          CMD="$CMD --no-youtube"
         fi
         
-        if [ -n "$DURATION" ] && [ "$DURATION" != "null" ]; then
-          COMMAND="$COMMAND --duration=$DURATION"
-          echo "⏱️ Using duration: ${DURATION}s"
+        if [ -n "${{ github.event.inputs.duration }}" ] && [ "${{ github.event.inputs.duration }}" != "" ]; then
+          CMD="$CMD --duration=${{ github.event.inputs.duration }}"
         fi
         
-        echo "========================================"
-        echo "🚀 Executing: $COMMAND"
-        echo "========================================"
-        
-        $COMMAND
-        
-        if [ -d "extracted_date_pages" ]; then
-          VIDEO_FILE=$(ls extracted_date_pages/*.mp4 2>/dev/null | head -1)
-          if [ -n "$VIDEO_FILE" ]; then
-            echo "video_file=$VIDEO_FILE" >> $GITHUB_OUTPUT
-          fi
-        fi
+        echo "🚀 Running: $CMD"
+        $CMD
       env:
         PYTHONUNBUFFERED: 1
     
-    - name: Upload video as artifact
+    - name: Upload artifacts
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: creative-daily-video-${{ github.run_id }}
-        path: extracted_date_pages/*.mp4
+        name: creative-daily-outputs
+        path: extracted_date_pages/
         retention-days: 30
-    
-    - name: Upload images as artifact
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: extracted-images-${{ github.run_id }}
-        path: extracted_date_pages/*.png
-        retention-days: 30
-    
-    - name: Upload all outputs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: creative-daily-outputs-${{ github.run_id }}
-        path: |
-          extracted_date_pages/
-          *.log
-        retention-days: 14
-    
-    - name: Summary
-      if: always()
-      run: |
-        echo "========================================"
-        echo "📊 CREATIVE DAILY SUMMARY"
-        echo "========================================"
-        echo "Run ID: ${{ github.run_id }}"
-        echo "Status: ${{ job.status }}"
-        echo ""
-        
-        if [ -d "extracted_date_pages" ]; then
-          echo "📁 extracted_date_pages/ contents:"
-          ls -la extracted_date_pages/
-          echo ""
-          
-          VIDEO_COUNT=$(ls extracted_date_pages/*.mp4 2>/dev/null | wc -l)
-          IMAGE_COUNT=$(ls extracted_date_pages/*.png 2>/dev/null | wc -l)
-          
-          echo "✅ Video files: $VIDEO_COUNT"
-          echo "✅ Image files: $IMAGE_COUNT"
-        else
-          echo "❌ No extracted_date_pages directory found"
-        fi
-        echo "========================================"
