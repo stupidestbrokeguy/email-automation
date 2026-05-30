@@ -6,7 +6,7 @@ FEATURES:
 - 60% zoomed image for large readable text
 - Yellow background
 - Background music support
-- PROPER THUMBNAIL: Crops yellow background, preserves proportions
+- PROPER THUMBNAIL: Captures at 4.7s, crops yellow, stretches to fill all corners
 - Random video duration (17-21 seconds)
 """
 
@@ -84,13 +84,16 @@ def extract_date_from_top_of_page(page_text: str) -> str:
 
 def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 4.7) -> str:
     """
-    Extract thumbnail from video - cropping to JUST the image content (no yellow background)
+    Extract thumbnail from video - captures at 4.7 seconds (image fully on screen),
+    crops from top of image to bottom of screen, then stretches to fill all 4 corners.
     
-    At 2 seconds, the image is positioned nicely on screen.
-    This function extracts just the image region, removing the yellow background.
+    Args:
+        video_path: Path to video file
+        output_path: Where to save thumbnail (auto-generated if None)
+        time_seconds: Time in seconds to capture frame (default 4.7 seconds)
     
     Returns:
-        Path to saved thumbnail image (image-only, cropped)
+        Path to saved thumbnail image (stretched to fill all corners)
     """
     print(f"\n🎬 Extracting thumbnail from video...")
     print(f"   📹 Video: {video_path}")
@@ -110,20 +113,22 @@ def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_
         
         # Convert frame to PIL Image
         img = Image.fromarray(frame.astype('uint8'), 'RGB')
-        print(f"   📸 Original frame size: {img.size}")
+        original_width, original_height = img.size
+        print(f"   📸 Original frame size: {original_width}x{original_height}")
         
-        # Detect and crop out the yellow background
+        # Detect yellow background and find the image content
         img_array = np.array(img)
         
         # Define yellow color range (with tolerance)
-        yellow_lower = np.array([240, 200, 0])
-        yellow_upper = np.array([255, 230, 50])
+        yellow_lower = np.array([200, 180, 0])
+        yellow_upper = np.array([255, 240, 100])
         
-        # Find non-yellow pixels (the image content)
+        # Find non-yellow pixels (the actual image content)
         is_not_yellow = np.any((img_array < yellow_lower) | (img_array > yellow_upper), axis=2)
         non_yellow_coords = np.argwhere(is_not_yellow)
         
         if len(non_yellow_coords) > 0:
+            # Get bounding box of the image content
             y_min = non_yellow_coords[:, 0].min()
             y_max = non_yellow_coords[:, 0].max()
             x_min = non_yellow_coords[:, 1].min()
@@ -132,17 +137,29 @@ def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_
             # Add small padding
             padding = 5
             y_min = max(0, y_min - padding)
-            y_max = min(img.height, y_max + padding)
+            y_max = min(original_height, y_max + padding)
             x_min = max(0, x_min - padding)
-            x_max = min(img.width, x_max + padding)
+            x_max = min(original_width, x_max + padding)
             
-            # Crop to just the image content
+            # Crop to JUST the image content (from top of image to bottom of screen)
+            # This captures ALL important data - no cut-off
             cropped_img = img.crop((x_min, y_min, x_max, y_max))
-            print(f"   ✂️ Cropped to: {cropped_img.size} (removed yellow background)")
-            cropped_img.save(output_path, quality=90)
+            print(f"   ✂️ Cropped image size: {cropped_img.size}")
+            
+            # Target YouTube Shorts thumbnail size (fills all 4 corners)
+            target_width, target_height = 1080, 1920
+            
+            # Stretch the cropped image to fill ALL 4 corners (no letterboxing)
+            stretched_img = cropped_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+            print(f"   📐 Stretched to: {stretched_img.size} (fills all 4 corners)")
+            
+            stretched_img.save(output_path, quality=95)
         else:
-            print(f"   ⚠️ Could not detect yellow background, saving full frame")
-            img.save(output_path, quality=90)
+            # If no yellow detected, stretch the full frame
+            print(f"   ⚠️ No yellow background detected, stretching full frame")
+            target_width, target_height = 1080, 1920
+            stretched_img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+            stretched_img.save(output_path, quality=95)
         
         print(f"   ✅ Thumbnail saved: {output_path}")
         return output_path
@@ -450,8 +467,8 @@ class CompleteCalendarExtractor:
             video_url = f"https://youtu.be/{response['id']}"
             print(f"   ✅ Uploaded! URL: {video_url}")
 
-            # Extract and upload thumbnail
-            thumbnail_path = extract_thumbnail_from_video(video_path, time_seconds=2.0)
+            # Extract and upload thumbnail (captures at 4.7 seconds, crops yellow, stretches to fill corners)
+            thumbnail_path = extract_thumbnail_from_video(video_path, time_seconds=4.7)
             if thumbnail_path and os.path.exists(thumbnail_path):
                 try:
                     youtube.thumbnails().set(
@@ -459,7 +476,7 @@ class CompleteCalendarExtractor:
                         media_body=MediaFileUpload(thumbnail_path)
                     ).execute()
                     os.remove(thumbnail_path)
-                    print(f"   ✅ Thumbnail uploaded (cropped, no yellow background)")
+                    print(f"   ✅ Thumbnail uploaded (4.7s, cropped, stretched to fill all corners)")
                 except Exception as e:
                     print(f"   ⚠️ Thumbnail error: {e}")
 
@@ -601,7 +618,7 @@ if __name__ == "__main__":
         if result.get('youtube') and result['youtube']['status'] == 'success':
             print(f"\n📹 POSTED TO YOUTUBE!")
             print(f"   🔗 URL: {result['youtube']['video_url']}")
-            print(f"   🖼️ Thumbnail: Cropped (yellow background removed)")
+            print(f"   🖼️ Thumbnail: Captured at 4.7s, cropped, stretched to fill corners")
         sys.exit(0)
     else:
         print(f"❌ FAILED: {result['status']}")
