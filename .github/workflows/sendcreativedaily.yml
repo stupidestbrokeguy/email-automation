@@ -1,14 +1,29 @@
-name: Daily Creative Daily YouTube Upload
+name: Creative Daily YouTube Upload
 
 on:
   schedule:
+    # Runs every day at 6:00 AM UTC (10:00 AM Dubai time)
     - cron: '0 6 * * *'
-  workflow_dispatch:  # Enable manual trigger for testing
-  # push:
-  #   branches: [ main, master ]
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: 'Target date (YYYY-MM-DD) - leave empty for today'
+        required: false
+        type: string
+      no_youtube:
+        description: 'Skip YouTube upload'
+        required: false
+        type: boolean
+        default: false
+      duration:
+        description: 'Video duration in seconds'
+        required: false
+        type: number
+        default: 18
 
 jobs:
-  send-creativedaily:
+  process-and-upload:
     runs-on: ubuntu-latest
     
     permissions:
@@ -42,6 +57,7 @@ jobs:
       run: |
         if [ -z "${{ secrets.CLIENT_SECRETS_JSON }}" ]; then
           echo "❌ ERROR: CLIENT_SECRETS_JSON secret is missing!"
+          echo "💡 Add your base64-encoded client_secrets.json as a secret"
           exit 1
         fi
         echo "${{ secrets.CLIENT_SECRETS_JSON }}" | base64 -d > client_secrets.json
@@ -50,23 +66,12 @@ jobs:
     - name: Decode and create token.pickle
       run: |
         if [ -z "${{ secrets.YOUTUBE_TOKEN }}" ]; then
-          echo "❌ ERROR: YOUTUBE_TOKEN secret is missing!"
-          exit 1
+          echo "⚠️ WARNING: YOUTUBE_TOKEN secret is missing!"
+          echo "💡 First run will require manual auth, subsequent runs will use saved token"
+        else
+          echo "${{ secrets.YOUTUBE_TOKEN }}" | base64 -d > token.pickle
+          echo "✅ token.pickle restored ($(wc -c < token.pickle) bytes)"
         fi
-        echo "${{ secrets.YOUTUBE_TOKEN }}" | base64 -d > token.pickle
-        echo "✅ token.pickle restored ($(wc -c < token.pickle) bytes)"
-    
-    - name: Verify PDF exists
-      run: |
-        # Update this to your actual PDF filename
-        PDF_FILE="your_document.pdf"  # ← CHANGE THIS TO YOUR PDF NAME
-        if [ ! -f "$PDF_FILE" ]; then
-          echo "❌ PDF file '$PDF_FILE' not found!"
-          echo "📁 Available files:"
-          ls -la
-          exit 1
-        fi
-        echo "✅ PDF file found: $PDF_FILE ($(du -h $PDF_FILE | cut -f1))"
     
     - name: List directory contents (debug)
       run: |
@@ -75,30 +80,182 @@ jobs:
         echo ""
         echo "📁 Python files:"
         ls -la *.py 2>/dev/null || echo "No Python files found in root"
+        echo ""
+        echo "📁 PDF files:"
+        ls -la *.pdf 2>/dev/null || echo "No PDF files found"
+        echo ""
+        echo "📁 MP3 files:"
+        ls -la *.mp3 2>/dev/null || echo "No MP3 files found"
+    
+    - name: Verify required files exist
+      run: |
+        echo "🔍 Checking required files..."
+        
+        # Check for check.py
+        if [ ! -f "check.py" ]; then
+          echo "❌ check.py not found!"
+          exit 1
+        fi
+        echo "✅ check.py found"
+        
+        # Check for PDF file (update this to your actual PDF filename)
+        PDF_FILE=$(ls *.pdf 2>/dev/null | head -1)
+        if [ -z "$PDF_FILE" ]; then
+          echo "❌ No PDF file found!"
+          echo "💡 Make sure your PDF file is in the repository"
+          exit 1
+        fi
+        echo "✅ PDF file found: $PDF_FILE ($(du -h $PDF_FILE | cut -f1))"
+        
+        # Create symbolic link or rename if needed
+        if [ "$PDF_FILE" != "your_document.pdf" ]; then
+          echo "📎 Creating symlink: your_document.pdf -> $PDF_FILE"
+          ln -sf "$PDF_FILE" your_document.pdf
+        fi
     
     - name: Run Creative Daily script
+      id: creative_daily
       run: |
         TODAY=$(date +'%Y-%m-%d')
-        echo "📅 Processing date: $TODAY"
-        python check.py $TODAY
+        echo "📅 Processing date: ${TODAY}"
+        
+        # Build command with optional parameters
+        CMD="python check.py"
+        
+        # Add target date if provided via workflow_dispatch
+        if [ -n "${{ github.event.inputs.target_date }}" ]; then
+          CMD="$CMD ${{ github.event.inputs.target_date }}"
+          echo "🎯 Using custom date: ${{ github.event.inputs.target_date }}"
+        else
+          CMD="$CMD $TODAY"
+        fi
+        
+        # Add no-youtube flag if requested
+        if [ "${{ github.event.inputs.no_youtube }}" == "true" ]; then
+          CMD="$CMD --no-youtube"
+          echo "📹 YouTube upload disabled"
+        fi
+        
+        # Add custom duration if provided
+        if [ -n "${{ github.event.inputs.duration }}" ]; then
+          CMD="$CMD --duration=${{ github.event.inputs.duration }}"
+          echo "⏱️ Using custom duration: ${{ github.event.inputs.duration }}s"
+        fi
+        
+        echo "🚀 Running: $CMD"
+        python -u $CMD
+        
+        # Save video path for later steps
+        VIDEO_FILE=$(ls extracted_date_pages/*.mp4 2>/dev/null | head -1)
+        if [ -n "$VIDEO_FILE" ]; then
+          echo "video_file=$VIDEO_FILE" >> $GITHUB_OUTPUT
+          echo "✅ Video created: $VIDEO_FILE"
+        fi
       env:
-        # Pass as environment variables for debugging
         PYTHONUNBUFFERED: 1
     
     - name: Upload video as artifact
-      if: always()  # Upload even if script fails
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: creative-daily-video
+        name: creative-daily-video-${{ github.run_id }}
         path: extracted_date_pages/*.mp4
+        retention-days: 30
+    
+    - name: Upload images as artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: extracted-images-${{ github.run_id }}
+        path: extracted_date_pages/*.png
         retention-days: 30
     
     - name: Upload logs if failed
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: error-logs
+        name: error-logs-${{ github.run_id }}
         path: |
           *.log
           extracted_date_pages/*.txt
         retention-days: 7
+    
+    - name: Save updated token.pickle as artifact (if created)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: youtube-token-${{ github.run_id }}
+        path: token.pickle
+        retention-days: 7
+    
+    - name: Update token.pickle in repository (if changed)
+      if: always()
+      env:
+        PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+      run: |
+        # Check if token.pickle exists and is different from the one in repo
+        if [ -f "token.pickle" ]; then
+          echo "🔄 Checking if token.pickle was updated..."
+          
+          # Configure git
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # Use PAT_TOKEN if available, otherwise GITHUB_TOKEN
+          if [ -n "${PAT_TOKEN}" ]; then
+            git remote set-url origin https://stupidestbrokeguy:${PAT_TOKEN}@github.com/${{ github.repository }}.git
+            echo "✅ Using PAT_TOKEN for authentication"
+          else
+            git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+            echo "⚠️ Using GITHUB_TOKEN (may not have push permissions)"
+          fi
+          
+          # Pull latest changes
+          git pull origin master --no-rebase --allow-unrelated-histories || true
+          
+          # Check if token.pickle changed
+          if git diff --quiet token.pickle 2>/dev/null; then
+            echo "ℹ️ token.pickle unchanged"
+          else
+            # Encode token.pickle to base64 and save as secret
+            echo "💾 token.pickle changed - encoding for secret storage..."
+            ENCODED_TOKEN=$(base64 -w 0 token.pickle)
+            echo "📝 To update your YOUTUBE_TOKEN secret, add this value:"
+            echo "$ENCODED_TOKEN"
+            echo ""
+            echo "⚠️ You need to manually update the YOUTUBE_TOKEN secret in GitHub Settings"
+            
+            # Still commit the file (though it's binary)
+            git add token.pickle
+            git commit -m "Update YouTube token [skip ci] - $(date '+%Y-%m-%d %H:%M:%S')"
+            git push origin HEAD:master
+            echo "✅ token.pickle committed to repository"
+          fi
+        fi
+    
+    - name: Summary
+      if: always()
+      run: |
+        echo "========================================"
+        echo "📊 CREATIVE DAILY WORKFLOW SUMMARY"
+        echo "========================================"
+        
+        if [ -f "extracted_date_pages/*.mp4" ]; then
+          echo "✅ Video created successfully"
+          VIDEO_FILE=$(ls extracted_date_pages/*.mp4 2>/dev/null | head -1)
+          if [ -n "$VIDEO_FILE" ]; then
+            VIDEO_SIZE=$(du -h "$VIDEO_FILE" | cut -f1)
+            echo "   📹 Video: $(basename $VIDEO_FILE) ($VIDEO_SIZE)"
+          fi
+        else
+          echo "❌ No video file created"
+        fi
+        
+        if [ -f "extracted_date_pages/*.png" ]; then
+          PNG_COUNT=$(ls extracted_date_pages/*.png 2>/dev/null | wc -l)
+          echo "📸 Extracted $PNG_COUNT image(s)"
+        fi
+        
+        echo "========================================"
+        echo "📁 Artifacts saved for run #${{ github.run_id }}"
+        echo "========================================"
