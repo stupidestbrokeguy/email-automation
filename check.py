@@ -461,7 +461,7 @@ class CompleteCalendarExtractor:
         else:
             main_title = f"Creative Daily | {formatted_date} | Stupid Orange | Stupidest Broke Guy"
         
-        full_title = f"{main_title} | #creativedaily #stupidestbrokeguy #UAE #Dubai"
+        full_title = f"{main_title} | #creativedaily  #Dubai"
         
         video_description = f"""{page_text[:1500] if page_text else ''}
 
@@ -642,4 +642,4 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         print(f"❌ FAILED")
-        sys.exit(1)--this code is perfect l just want animation to be 25 sec and from t0 whole image slide into view so user reads content
+        sys.exit(1)
