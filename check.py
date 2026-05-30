@@ -82,7 +82,7 @@ def extract_date_from_top_of_page(page_text: str) -> str:
                     continue
     return None
 
-def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 25.0) -> str:
+def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 5.0) -> str:
     """
     Extract thumbnail from video - FIXED at 25 seconds,
     crops yellow background, stretches to fill landscape format (1920x1080)
