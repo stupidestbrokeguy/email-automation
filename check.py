@@ -1,7 +1,8 @@
 """
-Creative Daily - Top Quarter Thumbnail + Reveal Animation
-- Thumbnail: Top quarter of image ONLY, stretched to fill 1920x1080 (no yellow)
-- Video: Starts with top quarter visible (matches thumbnail), reveals rest over time
+Creative Daily - Thumbnail from Exact Visible Area + Crop Yellow Background
+- Crops out yellow background from ALL sides (left, right, top, bottom)
+- Takes ONLY the image content
+- Stretches to fill 1920x1080 (no black bars, no yellow)
 """
 
 import os
@@ -9,6 +10,7 @@ import re
 import sys
 import pickle
 import socket
+import numpy as np
 from datetime import datetime
 import fitz  # PyMuPDF
 
@@ -20,13 +22,14 @@ PLAYLIST_DESCRIPTION = """Welcome to the Official Playlist of the Creative Daily
 
 # Video settings
 VIDEO_DURATION = 18                     # Seconds
-ZOOM_FACTOR = 1.9                      # Zoom level
-START_VISIBLE_PERCENT = 34              # At t=0, only top 25% visible
+ZOOM_FACTOR = 1.6                       # Zoom level
 BACKGROUND_COLOR = (255, 215, 0)        # Yellow background
-EASING = "ease_in_out"                  # Animation easing
 
-# Thumbnail settings
-THUMBNAIL_SIZE = (1920, 1080)           # YouTube thumbnail size
+# Start position settings - adjust this to match desired t=0 position
+# To find the value: run test script or calculate from your desired time
+START_Y_POSITION = 780                  # ← CHANGE THIS as needed
+
+EASING = "ease_in_out"                  # Animation easing
 # ===================================
 
 def find_free_port(start_port=8080, end_port=8090):
@@ -76,15 +79,16 @@ def extract_date_from_top_of_page(page_text: str) -> str:
                     continue
     return None
 
-def create_thumbnail_from_visible_area(image_path: str, output_path: str = None, target_size: tuple = (1920, 1080)) -> str:
+def create_thumbnail_from_visible_area(image_path: str, y_position: float, output_path: str = None, target_size: tuple = (1920, 1080)) -> str:
     """
-    Create thumbnail from ONLY the visible portion at t=0 (top quarter).
-    Crops out yellow background, then stretches image content to fill entire canvas.
-    NO BLACK BARS - image ONLY, fills all 4 corners.
+    Create thumbnail from visible area at given Y position.
+    CROPS OUT YELLOW BACKGROUND FROM ALL SIDES.
+    Stretches image content to fill entire canvas.
     """
-    print(f"\n🎬 Creating thumbnail from visible area (top quarter)...")
+    print(f"\n🎬 Creating thumbnail from visible area at Y={y_position}...")
     print(f"   📷 Source: {image_path}")
-    print(f"   📐 Target: {target_size[0]}x{target_size[1]} (fills all corners, no black bars)")
+    print(f"   📐 Target: {target_size[0]}x{target_size[1]}")
+    print(f"   🟡 Cropping out yellow background from all sides")
     
     if output_path is None:
         output_path = image_path.replace('.png', '_thumbnail.png')
@@ -93,35 +97,84 @@ def create_thumbnail_from_visible_area(image_path: str, output_path: str = None,
         from PIL import Image
         
         img = Image.open(image_path)
-        original_width, original_height = img.size
+        img_array = np.array(img)
+        original_height, original_width = img_array.shape[:2]
         print(f"   📸 Original: {original_width}x{original_height}")
         
-        # Step 1: Crop to visible area at t=0 (top quarter)
-        crop_height = int(original_height * START_VISIBLE_PERCENT / 100)
-        visible_area = img.crop((0, 0, original_width, crop_height))
-        print(f"   ✂️ Visible area (top {START_VISIBLE_PERCENT}%): {visible_area.size}")
+        # Calculate visible area in original image based on Y position
+        screen_width, screen_height = 1920, 1080
+        fit_scale = min(screen_width / original_width, screen_height / original_height)
+        scale = fit_scale * ZOOM_FACTOR
+        scaled_height = int(original_height * scale)
         
-        # Step 2: Stretch visible area to fill target size (touches all 4 corners)
-        # This ensures NO yellow background and NO black bars
-        stretched_img = visible_area.resize(target_size, Image.Resampling.LANCZOS)
-        print(f"   📐 Stretched to fill target: {stretched_img.size}")
+        # Calculate crop region
+        if y_position < 0:
+            image_start_y = -y_position
+            crop_top = int(image_start_y / scale)
+        else:
+            crop_top = 0
+        
+        visible_end_y = min(screen_height, y_position + scaled_height)
+        visible_height = visible_end_y - max(0, y_position)
+        crop_bottom = int(crop_top + (visible_height / scale))
+        
+        crop_top = max(0, min(crop_top, original_height))
+        crop_bottom = max(0, min(crop_bottom, original_height))
+        
+        print(f"   ✂️ Initial crop: Y={crop_top} to Y={crop_bottom}")
+        
+        # Crop to visible area
+        visible_area = img.crop((0, crop_top, original_width, crop_bottom))
+        visible_array = np.array(visible_area)
+        
+        # ============================================================
+        # DETECT AND CROP OUT YELLOW BACKGROUND FROM ALL SIDES
+        # ============================================================
+        
+        yellow_lower = np.array([200, 180, 0])
+        yellow_upper = np.array([255, 240, 100])
+        
+        is_not_yellow = np.any((visible_array < yellow_lower) | (visible_array > yellow_upper), axis=2)
+        non_yellow_coords = np.argwhere(is_not_yellow)
+        
+        if len(non_yellow_coords) > 0:
+            y_min = non_yellow_coords[:, 0].min()
+            y_max = non_yellow_coords[:, 0].max()
+            x_min = non_yellow_coords[:, 1].min()
+            x_max = non_yellow_coords[:, 1].max()
+            
+            padding = 5
+            y_min = max(0, y_min - padding)
+            y_max = min(visible_array.shape[0], y_max + padding)
+            x_min = max(0, x_min - padding)
+            x_max = min(visible_array.shape[1], x_max + padding)
+            
+            content_only = visible_area.crop((x_min, y_min, x_max, y_max))
+            print(f"   ✂️ Cropped yellow: {content_only.size}")
+            print(f"      Removed left: {x_min}px, right: {visible_array.shape[1] - x_max}px")
+            print(f"      Removed top: {y_min}px, bottom: {visible_array.shape[0] - y_max}px")
+        else:
+            content_only = visible_area
+            print(f"   ⚠️ No yellow detected")
+        
+        # Stretch to fill target
+        stretched_img = content_only.resize(target_size, Image.Resampling.LANCZOS)
+        print(f"   📐 Stretched to: {stretched_img.size}")
         
         stretched_img.save(output_path, quality=95)
-        print(f"   ✅ Thumbnail saved (image only, fills all corners)")
+        print(f"   ✅ Thumbnail saved")
         return output_path
         
     except Exception as e:
-        print(f"   ❌ Error creating thumbnail: {e}")
+        print(f"   ❌ Error: {e}")
         return None
 
 def create_sliding_animation_video(image_path: str, output_path: str = None,
                                     bg_color: tuple = BACKGROUND_COLOR,
                                     slide_duration: int = VIDEO_DURATION,
-                                    audio_file: str = None) -> str:
-    """
-    Create video where at t=0 only top quarter is visible (matches thumbnail).
-    Reveals remaining image over time.
-    """
+                                    audio_file: str = None,
+                                    start_y: float = START_Y_POSITION) -> str:
+    """Create video starting at specified Y position."""
     
     if output_path is None:
         output_path = image_path.replace('.png', '_video.mp4')
@@ -129,7 +182,7 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
     print(f"\n🎬 Creating video...")
     print(f"   📷 Image: {image_path}")
     print(f"   ⏱️  Duration: {slide_duration}s")
-    print(f"   📍 t=0: Top {START_VISIBLE_PERCENT}% visible (matches thumbnail)")
+    print(f"   📍 t=0 position: Y={start_y}")
     
     try:
         from moviepy import ImageClip, CompositeVideoClip, ColorClip
@@ -149,13 +202,11 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
         
-        # Apply zoom
         fit_scale = min(screen_width / img_width, screen_height / img_height)
         scale = fit_scale * ZOOM_FACTOR
         new_width = int(img_width * scale)
         new_height = int(img_height * scale)
         
-        # Resize image
         try:
             pil_img_resized = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         except AttributeError:
@@ -164,23 +215,10 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
         temp_img_path = image_path.replace('.png', '_temp_resized.png')
         pil_img_resized.save(temp_img_path)
         
-        # Create image clip
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
         
-        # ============================================================
-        # ANIMATION: At t=0, only top quarter visible (matches thumbnail)
-        # ============================================================
-        
-        # Calculate visible heights
-        visible_height_start = (new_height * START_VISIBLE_PERCENT) / 100
-        visible_height_end = new_height
-        
-        # Y positions to achieve the visible heights
-        start_y = screen_height - visible_height_start
-        end_y = screen_height - visible_height_end
-        
-        print(f"   📍 t=0 position: Y={start_y:.1f} (top {START_VISIBLE_PERCENT}% visible)")
-        print(f"   📍 End position: Y={end_y:.1f} (full image visible)")
+        # End position: image fully visible at top
+        end_y = 0
         
         def get_easing(progress):
             if EASING == "linear":
@@ -200,7 +238,6 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
         
         image_clip = image_clip.with_position(image_slide_position)
         
-        # Create yellow background (only visible in video while image reveals)
         background = ColorClip(size=(screen_width, screen_height), color=bg_color, duration=slide_duration)
         final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
         
@@ -230,7 +267,6 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
                         audio_clip = audio_clip.subclipped(0, slide_duration)
                         final_clip = final_clip.with_audio(audio_clip)
                         audio_added = True
-                        print(f"   🎵 Audio added from: {audio}")
                         break
                     except:
                         pass
@@ -238,7 +274,6 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
         if not audio_added:
             print(f"   ℹ️ No audio - video will be silent")
         
-        # Render video
         print(f"   💾 Rendering video...")
         audio_codec = 'aac' if audio_added else None
         final_clip.write_videofile(
@@ -268,7 +303,6 @@ class CompleteCalendarExtractor:
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
         self.playlist_id = None
-        print(f"🔧 Initialized: {pdf_path} -> {output_dir}")
 
     def find_page_by_date(self, target_date: str) -> dict:
         if not os.path.exists(self.pdf_path):
@@ -437,9 +471,9 @@ class CompleteCalendarExtractor:
             video_url = f"https://youtu.be/{response['id']}"
             print(f"   ✅ Uploaded! URL: {video_url}")
             
-            # Create thumbnail from visible area ONLY (top quarter), stretched to fill canvas
+            # Create thumbnail from visible area at START_Y_POSITION, cropping yellow from all sides
             image_path = video_path.replace('_video.mp4', '.png')
-            thumbnail_path = create_thumbnail_from_visible_area(image_path, target_size=THUMBNAIL_SIZE)
+            thumbnail_path = create_thumbnail_from_visible_area(image_path, START_Y_POSITION, target_size=(1920, 1080))
             
             if thumbnail_path and os.path.exists(thumbnail_path):
                 try:
@@ -447,7 +481,7 @@ class CompleteCalendarExtractor:
                         videoId=response['id'],
                         media_body=MediaFileUpload(thumbnail_path)
                     ).execute()
-                    print(f"   ✅ Thumbnail uploaded (visible area only, stretched to fill)")
+                    print(f"   ✅ Thumbnail uploaded (yellow cropped from all sides)")
                 except Exception as e:
                     print(f"   ⚠️ Thumbnail error: {e}")
             
@@ -472,12 +506,11 @@ class CompleteCalendarExtractor:
                      slide_duration: int = VIDEO_DURATION, audio_file: str = None) -> dict:
         print("="*60)
         print("📅 CREATIVE DAILY")
-        print("🎬 Thumbnail: Visible area only (top quarter), stretched to fill 1920x1080")
-        print("🎬 Video: t=0 matches thumbnail, reveals rest over time")
+        print(f"🎬 Start position: Y={START_Y_POSITION}")
+        print("🎬 Thumbnail: Visible area + crop yellow from ALL sides -> stretch to 1920x1080")
         print("="*60)
         print(f"📅 Target Date: {target_date}")
         print(f"⏱️  Duration: {slide_duration}s")
-        print(f"🖼️  Thumbnail: Top {START_VISIBLE_PERCENT}% only, stretched to fill")
         print("="*60)
         
         result = self.ensure_image_for_date(target_date)
@@ -491,7 +524,8 @@ class CompleteCalendarExtractor:
         video_path = create_sliding_animation_video(
             image_path=result['image_path'],
             slide_duration=slide_duration,
-            audio_file=audio_file
+            audio_file=audio_file,
+            start_y=START_Y_POSITION
         )
         
         if video_path is None:
@@ -535,6 +569,7 @@ if __name__ == "__main__":
         target_date = datetime.now().strftime("%Y-%m-%d")
     
     print(f"🎯 Target: {target_date}")
+    print(f"🎬 Start Y: {START_Y_POSITION}")
     
     if not os.path.exists(PDF_PATH):
         print(f"❌ PDF not found: {PDF_PATH}")
