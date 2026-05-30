@@ -6,8 +6,8 @@ FEATURES:
 - 60% zoomed image for large readable text
 - Yellow background
 - Background music support
-- PROPER THUMBNAIL: Captures at 4.7s, crops yellow, stretches to fill all corners
-- Random video duration (17-21 seconds)
+- THUMBNAIL: FIXED 25 seconds capture, LANDSCAPE format (1920x1080)
+- Random video duration (17-21 seconds) - video only
 """
 
 import os
@@ -82,22 +82,15 @@ def extract_date_from_top_of_page(page_text: str) -> str:
                     continue
     return None
 
-def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 4.7) -> str:
+def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 25.0) -> str:
     """
-    Extract thumbnail from video - captures at 4.7 seconds (image fully on screen),
-    crops from top of image to bottom of screen, then stretches to fill all 4 corners.
-    
-    Args:
-        video_path: Path to video file
-        output_path: Where to save thumbnail (auto-generated if None)
-        time_seconds: Time in seconds to capture frame (default 4.7 seconds)
-    
-    Returns:
-        Path to saved thumbnail image (stretched to fill all corners)
+    Extract thumbnail from video - FIXED at 25 seconds,
+    crops yellow background, stretches to fill landscape format (1920x1080)
     """
     print(f"\n🎬 Extracting thumbnail from video...")
     print(f"   📹 Video: {video_path}")
-    print(f"   ⏱️  Time: {time_seconds} seconds")
+    print(f"   ⏱️  Time: {time_seconds} seconds (FIXED)")
+    print(f"   📐 Target format: Landscape (1920x1080) - standard YouTube thumbnail")
     
     if output_path is None:
         output_path = video_path.replace('.mp4', '_thumbnail.png')
@@ -108,6 +101,12 @@ def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_
         import numpy as np
         
         clip = VideoFileClip(video_path)
+        
+        # Check if video is long enough
+        if clip.duration < time_seconds:
+            print(f"   ⚠️ Video duration ({clip.duration:.1f}s) < {time_seconds}s, using last frame")
+            time_seconds = clip.duration - 1.0
+        
         frame = clip.get_frame(time_seconds)
         clip.close()
         
@@ -141,23 +140,22 @@ def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_
             x_min = max(0, x_min - padding)
             x_max = min(original_width, x_max + padding)
             
-            # Crop to JUST the image content (from top of image to bottom of screen)
-            # This captures ALL important data - no cut-off
+            # Crop to JUST the image content
             cropped_img = img.crop((x_min, y_min, x_max, y_max))
             print(f"   ✂️ Cropped image size: {cropped_img.size}")
             
-            # Target YouTube Shorts thumbnail size (fills all 4 corners)
-            target_width, target_height = 1080, 1920
+            # Target standard YouTube thumbnail size (LANDSCAPE 16:9)
+            target_width, target_height = 1920, 1080
             
-            # Stretch the cropped image to fill ALL 4 corners (no letterboxing)
+            # Stretch the cropped image to fill landscape format
             stretched_img = cropped_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
-            print(f"   📐 Stretched to: {stretched_img.size} (fills all 4 corners)")
+            print(f"   📐 Stretched to LANDSCAPE: {stretched_img.size} (1920x1080)")
             
             stretched_img.save(output_path, quality=95)
         else:
-            # If no yellow detected, stretch the full frame
-            print(f"   ⚠️ No yellow background detected, stretching full frame")
-            target_width, target_height = 1080, 1920
+            # If no yellow detected, stretch the full frame to landscape
+            print(f"   ⚠️ No yellow background detected, stretching full frame to landscape")
+            target_width, target_height = 1920, 1080
             stretched_img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
             stretched_img.save(output_path, quality=95)
         
@@ -467,8 +465,8 @@ class CompleteCalendarExtractor:
             video_url = f"https://youtu.be/{response['id']}"
             print(f"   ✅ Uploaded! URL: {video_url}")
 
-            # Extract and upload thumbnail (captures at 4.7 seconds, crops yellow, stretches to fill corners)
-            thumbnail_path = extract_thumbnail_from_video(video_path, time_seconds=4.7)
+            # Extract and upload thumbnail - FIXED at 25 seconds, LANDSCAPE format
+            thumbnail_path = extract_thumbnail_from_video(video_path, time_seconds=25.0)
             if thumbnail_path and os.path.exists(thumbnail_path):
                 try:
                     youtube.thumbnails().set(
@@ -476,7 +474,7 @@ class CompleteCalendarExtractor:
                         media_body=MediaFileUpload(thumbnail_path)
                     ).execute()
                     os.remove(thumbnail_path)
-                    print(f"   ✅ Thumbnail uploaded (4.7s, cropped, stretched to fill all corners)")
+                    print(f"   ✅ Thumbnail uploaded (FIXED 25 seconds, LANDSCAPE 1920x1080)")
                 except Exception as e:
                     print(f"   ⚠️ Thumbnail error: {e}")
 
@@ -502,11 +500,12 @@ class CompleteCalendarExtractor:
                      slide_duration: int = None, audio_file: str = None) -> dict:
         if slide_duration is None:
             slide_duration = random.randint(17, 21)
-            print(f"🎲 Random duration: {slide_duration}s (17-21 range)")
+            print(f"🎲 Random video duration: {slide_duration}s (17-21 range)")
         
         print("="*60)
         print(f"📅 Creative Daily - {target_date}")
-        print(f"⏱️  Duration: {slide_duration}s")
+        print(f"⏱️  Video Duration: {slide_duration}s (random 17-21)")
+        print(f"🖼️  Thumbnail: FIXED 25 seconds, LANDSCAPE (1920x1080)")
         print(f"🎵 Audio: {audio_file if audio_file else 'Auto-detect'}")
         print(f"📹 YouTube: {'ON' if post_to_youtube else 'OFF'}")
         print("="*60)
@@ -569,7 +568,7 @@ if __name__ == "__main__":
             print("📹 YouTube upload disabled")
         elif arg.startswith("--duration="):
             slide_duration = int(arg.split("=")[1])
-            print(f"⏱️ Duration set to {slide_duration}s")
+            print(f"⏱️ Video duration set to {slide_duration}s")
         elif arg.startswith("--audio="):
             audio_file = arg.split("=")[1]
             print(f"🎵 Audio file: {audio_file}")
@@ -580,17 +579,19 @@ if __name__ == "__main__":
             target_date = arg
             print(f"📅 Target date: {target_date}")
 
-    # Default to random duration
+    # Default to random video duration (17-21 seconds)
     if slide_duration is None:
         slide_duration = random.randint(17, 21)
-        print(f"🎲 Random duration: {slide_duration}s (17-21 range)")
+        print(f"🎲 Random video duration: {slide_duration}s (17-21 range)")
 
     # Default to today
     if target_date is None:
         target_date = datetime.now().strftime("%Y-%m-%d")
         print(f"📅 Using today: {target_date}")
 
-    print(f"\n🎯 Final: {target_date}, Duration: {slide_duration}s")
+    print(f"\n🎯 Final: {target_date}")
+    print(f"   📹 Video duration: {slide_duration}s (RANDOM 17-21)")
+    print(f"   🖼️ Thumbnail capture: FIXED 25 seconds, LANDSCAPE 1920x1080")
 
     # Check PDF
     if not os.path.exists(PDF_PATH):
@@ -614,11 +615,12 @@ if __name__ == "__main__":
         print(f"✅ SUCCESS!")
         print(f"   📅 Date: {result['date']}")
         print(f"   🎬 Video: {result.get('video_path', 'N/A')}")
+        print(f"   ⏱️ Video length: {slide_duration}s")
+        print(f"   🖼️ Thumbnail: FIXED 25 seconds, LANDSCAPE 1920x1080")
         
         if result.get('youtube') and result['youtube']['status'] == 'success':
             print(f"\n📹 POSTED TO YOUTUBE!")
             print(f"   🔗 URL: {result['youtube']['video_url']}")
-            print(f"   🖼️ Thumbnail: Captured at 4.7s, cropped, stretched to fill corners")
         sys.exit(0)
     else:
         print(f"❌ FAILED: {result['status']}")
