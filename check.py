@@ -1,8 +1,9 @@
 """
-Creative Daily - Thumbnail from Exact Visible Area + Crop Yellow Background
-- Crops out yellow background from ALL sides (left, right, top, bottom)
-- Takes ONLY the image content
-- Stretches to fill 1920x1080 (no black bars, no yellow)
+Creative Daily - Thumbnail from Visible PNG Portion at t=0
+- Takes ONLY the part of PNG visible on screen at t=0
+- Removes yellow background from ALL sides
+- Stretches content to fill all 4 corners of 1920x1080
+- NO yellow, NO black bars, just image content
 """
 
 import os
@@ -25,9 +26,9 @@ VIDEO_DURATION = 18                     # Seconds
 ZOOM_FACTOR = 1.6                       # Zoom level
 BACKGROUND_COLOR = (255, 215, 0)        # Yellow background
 
-# Start position settings - adjust this to match desired t=0 position
-# To find the value: run test script or calculate from your desired time
-START_Y_POSITION = 780                  # ← CHANGE THIS as needed
+# Start position - adjust this to control what part of PNG is visible at t=0
+# Lower number = less visible, Higher number = more visible
+START_Y_POSITION = 780                  # ← CHANGE THIS
 
 EASING = "ease_in_out"                  # Animation easing
 # ===================================
@@ -81,14 +82,13 @@ def extract_date_from_top_of_page(page_text: str) -> str:
 
 def create_thumbnail_from_visible_area(image_path: str, y_position: float, output_path: str = None, target_size: tuple = (1920, 1080)) -> str:
     """
-    Create thumbnail from visible area at given Y position.
-    CROPS OUT YELLOW BACKGROUND FROM ALL SIDES.
-    Stretches image content to fill entire canvas.
+    Create thumbnail from ONLY the part of PNG visible on screen at t=0.
+    Crops out yellow from ALL sides. Stretches content to fill all 4 corners.
     """
     print(f"\n🎬 Creating thumbnail from visible area at Y={y_position}...")
     print(f"   📷 Source: {image_path}")
-    print(f"   📐 Target: {target_size[0]}x{target_size[1]}")
-    print(f"   🟡 Cropping out yellow background from all sides")
+    print(f"   📐 Target: {target_size[0]}x{target_size[1]} (stretch to fill)")
+    print(f"   🟡 Cropping out yellow from ALL sides")
     
     if output_path is None:
         output_path = image_path.replace('.png', '_thumbnail.png')
@@ -99,15 +99,14 @@ def create_thumbnail_from_visible_area(image_path: str, y_position: float, outpu
         img = Image.open(image_path)
         img_array = np.array(img)
         original_height, original_width = img_array.shape[:2]
-        print(f"   📸 Original: {original_width}x{original_height}")
+        print(f"   📸 Original PNG: {original_width}x{original_height}")
         
-        # Calculate visible area in original image based on Y position
+        # Calculate visible portion in original PNG
         screen_width, screen_height = 1920, 1080
         fit_scale = min(screen_width / original_width, screen_height / original_height)
         scale = fit_scale * ZOOM_FACTOR
         scaled_height = int(original_height * scale)
         
-        # Calculate crop region
         if y_position < 0:
             image_start_y = -y_position
             crop_top = int(image_start_y / scale)
@@ -121,16 +120,14 @@ def create_thumbnail_from_visible_area(image_path: str, y_position: float, outpu
         crop_top = max(0, min(crop_top, original_height))
         crop_bottom = max(0, min(crop_bottom, original_height))
         
-        print(f"   ✂️ Initial crop: Y={crop_top} to Y={crop_bottom}")
+        print(f"   ✂️ Visible PNG portion: Y={crop_top} to Y={crop_bottom}")
         
-        # Crop to visible area
-        visible_area = img.crop((0, crop_top, original_width, crop_bottom))
-        visible_array = np.array(visible_area)
+        # Crop to visible portion
+        visible_portion = img.crop((0, crop_top, original_width, crop_bottom))
+        visible_array = np.array(visible_portion)
+        print(f"   📐 Visible portion size: {visible_portion.size}")
         
-        # ============================================================
-        # DETECT AND CROP OUT YELLOW BACKGROUND FROM ALL SIDES
-        # ============================================================
-        
+        # Remove yellow background
         yellow_lower = np.array([200, 180, 0])
         yellow_upper = np.array([255, 240, 100])
         
@@ -143,23 +140,21 @@ def create_thumbnail_from_visible_area(image_path: str, y_position: float, outpu
             x_min = non_yellow_coords[:, 1].min()
             x_max = non_yellow_coords[:, 1].max()
             
-            padding = 5
+            padding = 2
             y_min = max(0, y_min - padding)
             y_max = min(visible_array.shape[0], y_max + padding)
             x_min = max(0, x_min - padding)
             x_max = min(visible_array.shape[1], x_max + padding)
             
-            content_only = visible_area.crop((x_min, y_min, x_max, y_max))
-            print(f"   ✂️ Cropped yellow: {content_only.size}")
-            print(f"      Removed left: {x_min}px, right: {visible_array.shape[1] - x_max}px")
-            print(f"      Removed top: {y_min}px, bottom: {visible_array.shape[0] - y_max}px")
+            content_only = visible_portion.crop((x_min, y_min, x_max, y_max))
+            print(f"   ✂️ Content only (yellow removed): {content_only.size}")
         else:
-            content_only = visible_area
+            content_only = visible_portion
             print(f"   ⚠️ No yellow detected")
         
-        # Stretch to fill target
+        # Stretch to fill target (touches all 4 corners)
         stretched_img = content_only.resize(target_size, Image.Resampling.LANCZOS)
-        print(f"   📐 Stretched to: {stretched_img.size}")
+        print(f"   📐 Stretched to fill all corners: {stretched_img.size}")
         
         stretched_img.save(output_path, quality=95)
         print(f"   ✅ Thumbnail saved")
@@ -217,7 +212,6 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
         
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
         
-        # End position: image fully visible at top
         end_y = 0
         
         def get_easing(progress):
@@ -471,7 +465,7 @@ class CompleteCalendarExtractor:
             video_url = f"https://youtu.be/{response['id']}"
             print(f"   ✅ Uploaded! URL: {video_url}")
             
-            # Create thumbnail from visible area at START_Y_POSITION, cropping yellow from all sides
+            # Create thumbnail from visible PNG portion
             image_path = video_path.replace('_video.mp4', '.png')
             thumbnail_path = create_thumbnail_from_visible_area(image_path, START_Y_POSITION, target_size=(1920, 1080))
             
@@ -481,7 +475,7 @@ class CompleteCalendarExtractor:
                         videoId=response['id'],
                         media_body=MediaFileUpload(thumbnail_path)
                     ).execute()
-                    print(f"   ✅ Thumbnail uploaded (yellow cropped from all sides)")
+                    print(f"   ✅ Thumbnail uploaded (visible PNG portion, yellow removed, stretched to fill)")
                 except Exception as e:
                     print(f"   ⚠️ Thumbnail error: {e}")
             
@@ -506,8 +500,8 @@ class CompleteCalendarExtractor:
                      slide_duration: int = VIDEO_DURATION, audio_file: str = None) -> dict:
         print("="*60)
         print("📅 CREATIVE DAILY")
-        print(f"🎬 Start position: Y={START_Y_POSITION}")
-        print("🎬 Thumbnail: Visible area + crop yellow from ALL sides -> stretch to 1920x1080")
+        print(f"🎬 Start Y: {START_Y_POSITION} (controls visible PNG portion at t=0)")
+        print("🎬 Thumbnail: Visible PNG portion only, yellow removed, stretched to fill")
         print("="*60)
         print(f"📅 Target Date: {target_date}")
         print(f"⏱️  Duration: {slide_duration}s")
