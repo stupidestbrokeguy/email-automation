@@ -20,8 +20,8 @@ PLAYLIST_DESCRIPTION = """Welcome to the Official Playlist of the Creative Daily
 
 # Video settings
 VIDEO_DURATION = 18                     # Seconds
-ZOOM_FACTOR = 1.6                       # Zoom level
-START_VISIBLE_PERCENT = 25              # At t=0, only top 25% visible
+ZOOM_FACTOR = 1.9                      # Zoom level
+START_VISIBLE_PERCENT = 34              # At t=0, only top 25% visible
 BACKGROUND_COLOR = (255, 215, 0)        # Yellow background
 EASING = "ease_in_out"                  # Animation easing
 
