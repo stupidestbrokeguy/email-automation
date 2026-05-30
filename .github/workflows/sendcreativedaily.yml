@@ -98,12 +98,17 @@ jobs:
         fi
         echo "✅ check.py found"
         
-        # Check for PDF file (update this to your actual PDF filename)
-        PDF_FILE=$(ls *.pdf 2>/dev/null | head -1)
+        # Check for PDF file
+        PDF_FILE=$(ls *.pdf 2>/dev/null | grep -v "your_document.pdf" | head -1)
         if [ -z "$PDF_FILE" ]; then
-          echo "❌ No PDF file found!"
-          echo "💡 Make sure your PDF file is in the repository"
-          exit 1
+          # Check if your_document.pdf exists
+          if [ -f "your_document.pdf" ]; then
+            PDF_FILE="your_document.pdf"
+          else
+            echo "❌ No PDF file found!"
+            echo "💡 Make sure your PDF file is in the repository"
+            exit 1
+          fi
         fi
         echo "✅ PDF file found: $PDF_FILE ($(du -h $PDF_FILE | cut -f1))"
         
@@ -116,34 +121,35 @@ jobs:
     - name: Run Creative Daily script
       id: creative_daily
       run: |
-        TODAY=2026-06-27
+        TODAY=2026-06-23
         echo "📅 Processing date: ${TODAY}"
         
         # Build command with optional parameters
-        CMD="python check.py"
+        # IMPORTANT: Fix the command construction - don't use ${{ }} inside the run block
+        CMD_ARGS=""
         
         # Add target date if provided via workflow_dispatch
-        if [ -n "${{ github.event.inputs.target_date }}" ]; then
-          CMD="$CMD ${{ github.event.inputs.target_date }}"
-          echo "🎯 Using custom date: ${{ github.event.inputs.target_date }}"
+        if [ -n "$TARGET_DATE" ]; then
+          CMD_ARGS="$CMD_ARGS $TARGET_DATE"
+          echo "🎯 Using custom date: $TARGET_DATE"
         else
-          CMD="$CMD $TODAY"
+          CMD_ARGS="$CMD_ARGS $TODAY"
         fi
         
         # Add no-youtube flag if requested
-        if [ "${{ github.event.inputs.no_youtube }}" == "true" ]; then
-          CMD="$CMD --no-youtube"
+        if [ "$NO_YOUTUBE" = "true" ]; then
+          CMD_ARGS="$CMD_ARGS --no-youtube"
           echo "📹 YouTube upload disabled"
         fi
         
         # Add custom duration if provided
-        if [ -n "${{ github.event.inputs.duration }}" ]; then
-          CMD="$CMD --duration=${{ github.event.inputs.duration }}"
-          echo "⏱️ Using custom duration: ${{ github.event.inputs.duration }}s"
+        if [ -n "$DURATION" ]; then
+          CMD_ARGS="$CMD_ARGS --duration=$DURATION"
+          echo "⏱️ Using custom duration: ${DURATION}s"
         fi
         
-        echo "🚀 Running: $CMD"
-        python -u $CMD
+        echo "🚀 Running: python check.py$CMD_ARGS"
+        python check.py $CMD_ARGS
         
         # Save video path for later steps
         VIDEO_FILE=$(ls extracted_date_pages/*.mp4 2>/dev/null | head -1)
@@ -153,6 +159,9 @@ jobs:
         fi
       env:
         PYTHONUNBUFFERED: 1
+        TARGET_DATE: ${{ github.event.inputs.target_date }}
+        NO_YOUTUBE: ${{ github.event.inputs.no_youtube }}
+        DURATION: ${{ github.event.inputs.duration }}
     
     - name: Upload video as artifact
       if: always()
@@ -188,51 +197,6 @@ jobs:
         path: token.pickle
         retention-days: 7
     
-    - name: Update token.pickle in repository (if changed)
-      if: always()
-      env:
-        PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
-      run: |
-        # Check if token.pickle exists and is different from the one in repo
-        if [ -f "token.pickle" ]; then
-          echo "🔄 Checking if token.pickle was updated..."
-          
-          # Configure git
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          
-          # Use PAT_TOKEN if available, otherwise GITHUB_TOKEN
-          if [ -n "${PAT_TOKEN}" ]; then
-            git remote set-url origin https://stupidestbrokeguy:${PAT_TOKEN}@github.com/${{ github.repository }}.git
-            echo "✅ Using PAT_TOKEN for authentication"
-          else
-            git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
-            echo "⚠️ Using GITHUB_TOKEN (may not have push permissions)"
-          fi
-          
-          # Pull latest changes
-          git pull origin master --no-rebase --allow-unrelated-histories || true
-          
-          # Check if token.pickle changed
-          if git diff --quiet token.pickle 2>/dev/null; then
-            echo "ℹ️ token.pickle unchanged"
-          else
-            # Encode token.pickle to base64 and save as secret
-            echo "💾 token.pickle changed - encoding for secret storage..."
-            ENCODED_TOKEN=$(base64 -w 0 token.pickle)
-            echo "📝 To update your YOUTUBE_TOKEN secret, add this value:"
-            echo "$ENCODED_TOKEN"
-            echo ""
-            echo "⚠️ You need to manually update the YOUTUBE_TOKEN secret in GitHub Settings"
-            
-            # Still commit the file (though it's binary)
-            git add token.pickle
-            git commit -m "Update YouTube token [skip ci] - $(date '+%Y-%m-%d %H:%M:%S')"
-            git push origin HEAD:master
-            echo "✅ token.pickle committed to repository"
-          fi
-        fi
-    
     - name: Summary
       if: always()
       run: |
@@ -240,7 +204,7 @@ jobs:
         echo "📊 CREATIVE DAILY WORKFLOW SUMMARY"
         echo "========================================"
         
-        if [ -f "extracted_date_pages/*.mp4" ]; then
+        if ls extracted_date_pages/*.mp4 1> /dev/null 2>&1; then
           echo "✅ Video created successfully"
           VIDEO_FILE=$(ls extracted_date_pages/*.mp4 2>/dev/null | head -1)
           if [ -n "$VIDEO_FILE" ]; then
@@ -251,7 +215,7 @@ jobs:
           echo "❌ No video file created"
         fi
         
-        if [ -f "extracted_date_pages/*.png" ]; then
+        if ls extracted_date_pages/*.png 1> /dev/null 2>&1; then
           PNG_COUNT=$(ls extracted_date_pages/*.png 2>/dev/null | wc -l)
           echo "📸 Extracted $PNG_COUNT image(s)"
         fi
