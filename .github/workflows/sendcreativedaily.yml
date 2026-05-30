@@ -75,43 +75,50 @@ jobs:
       run: |
         echo "🔍 Setting up PDF file..."
         
-        # Find any PDF file (excluding symlinks)
-        PDF_FILE=$(ls *.pdf 2>/dev/null | grep -v "your_document.pdf" | head -1)
-        
-        if [ -z "$PDF_FILE" ]; then
-          if [ -f "your_document.pdf" ]; then
-            PDF_FILE="your_document.pdf"
-          else
-            echo "❌ No PDF file found!"
-            ls -la *.pdf 2>/dev/null || echo "No PDFs in directory"
-            exit 1
-          fi
+        # Use your_document.pdf directly
+        if [ -f "your_document.pdf" ]; then
+          echo "✅ Found PDF: your_document.pdf"
+          ls -la your_document.pdf
+        else
+          echo "❌ your_document.pdf not found!"
+          ls -la *.pdf 2>/dev/null || echo "No PDFs in directory"
+          exit 1
         fi
-        
-        echo "✅ Found PDF: $PDF_FILE"
-        
-        # Create a direct copy (not symlink) to avoid any issues
-        if [ "$PDF_FILE" != "your_document.pdf" ]; then
-          cp "$PDF_FILE" your_document.pdf
-          echo "📋 Copied to your_document.pdf"
-        fi
-        
-        ls -la your_document.pdf
     
     - name: Run Creative Daily script
       id: creative_daily
       run: |
-        # Get today's date
-        TODAY=2026-06-29
+        # Get actual today's date from system
+        TODAY=$(date +%Y-%m-%d)
         echo "📅 Today's date: $TODAY"
         
-        # Get input values (using direct variable assignment)
+        # Get input values
         TARGET_DATE="${{ github.event.inputs.target_date }}"
         NO_YOUTUBE="${{ github.event.inputs.no_youtube }}"
         DURATION="${{ github.event.inputs.duration }}"
         
         # Build command
         COMMAND="python check.py"
+        
+        # Calculate the day number from June 1, 2026
+        START_DATE="2026-06-01"
+        CURRENT_DATE="${TARGET_DATE:-$TODAY}"
+        
+        # Calculate days since June 1, 2026
+        DAYS_SINCE=$(python -c "
+from datetime import datetime
+start = datetime.strptime('$START_DATE', '%Y-%m-%d')
+current = datetime.strptime('$CURRENT_DATE', '%Y-%m-%d')
+diff = (current - start).days
+if diff < 0:
+    print(0)
+elif diff >= 37:
+    print(36)  # Cap at 37 days (index 0-36)
+else:
+    print(diff)
+")
+        
+        echo "📊 Day number: $DAYS_SINCE (0-indexed, Day 1 = June 1)"
         
         # Add date parameter
         if [ -n "$TARGET_DATE" ] && [ "$TARGET_DATE" != "null" ]; then
