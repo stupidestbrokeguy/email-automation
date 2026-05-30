@@ -8,6 +8,7 @@ FEATURES:
 - Background music support
 - GitHub artifact upload
 - AUTO THUMBNAIL from image content (no yellow background)
+- RANDOM VIDEO DURATION: 17-21 seconds for organic feel
 """
 
 import os
@@ -837,7 +838,12 @@ Follow Our Official Social Media Handles
             return {'status': 'failed', 'error': error_msg}
 
     def process_date(self, target_date: str, post_to_youtube: bool = True, 
-                     slide_duration: int = 18, audio_file: str = None) -> dict:
+                     slide_duration: int = None, audio_file: str = None) -> dict:
+        # If no duration specified, generate random between 17-21
+        if slide_duration is None:
+            slide_duration = random.randint(17, 21)
+            print(f"🎲 RANDOM DURATION: {slide_duration} seconds (17-21 range)")
+        
         print("="*60)
         print("📅 CREATIVE DAILY - COMPLETE WITH THUMBNAIL SUPPORT")
         print("🎬 60% zoom | Yellow background | Auto thumbnail (image only)")
@@ -911,7 +917,7 @@ if __name__ == "__main__":
 
     target_date = None
     post_to_youtube = True
-    slide_duration = random.randint(16, 22)
+    slide_duration = None  # Will be randomized (17-21) if not specified
     audio_file = None
 
     # Parse command line arguments
@@ -932,6 +938,11 @@ if __name__ == "__main__":
         elif re.match(r'\d{4}-\d{2}-\d{2}', arg):
             target_date = arg
             print(f"   📅 Target date: {target_date}")
+
+    # If no duration specified, use random between 17-21
+    if slide_duration is None:
+        slide_duration = random.randint(17, 21)
+        print(f"   🎲 RANDOM DURATION: {slide_duration}s (17-21 range)")
 
     if target_date is None:
         target_date = datetime.now().strftime("%Y-%m-%d")
