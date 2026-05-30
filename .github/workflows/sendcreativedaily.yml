@@ -1,4 +1,4 @@
-name: Send Creative Daily
+name: Creative Daily YouTube Upload
 
 on:
   schedule:
@@ -11,14 +11,13 @@ on:
         description: 'Target date (YYYY-MM-DD) - leave empty for today'
         required: false
         type: string
-        default: ''
       no_youtube:
         description: 'Skip YouTube upload'
         required: false
         type: boolean
         default: false
       duration:
-        description: 'Video duration in seconds (17-21 recommended)'
+        description: 'Video duration in seconds'
         required: false
         type: number
         default: 18
@@ -57,7 +56,7 @@ jobs:
     - name: Decode and create client_secrets.json
       run: |
         if [ -z "${{ secrets.CLIENT_SECRETS_JSON }}" ]; then
-          echo "⚠️ No CLIENT_SECRETS_JSON secret found - YouTube upload will be skipped"
+          echo "⚠️ No CLIENT_SECRETS_JSON secret found"
         else
           echo "${{ secrets.CLIENT_SECRETS_JSON }}" | base64 -d > client_secrets.json
           echo "✅ client_secrets.json created"
@@ -69,65 +68,44 @@ jobs:
           echo "${{ secrets.YOUTUBE_TOKEN }}" | base64 -d > token.pickle
           echo "✅ token.pickle restored"
         else
-          echo "⚠️ No token.pickle secret found - will need manual auth"
+          echo "⚠️ No token.pickle secret found"
         fi
     
     - name: Setup PDF file
       run: |
-        echo "🔍 Setting up PDF file..."
-        
-        # Find any PDF file
         if [ -f "your_document.pdf" ]; then
           echo "✅ Found PDF: your_document.pdf"
           ls -la your_document.pdf
-          
-          # Check PDF page count
-          python -c "
-import fitz
-try:
-    doc = fitz.open('your_document.pdf')
-    print(f'📄 PDF has {len(doc)} pages')
-    if len(doc) == 0:
-        print('❌ PDF has no pages!')
-        exit(1)
-    doc.close()
-except Exception as e:
-    print(f'❌ Error reading PDF: {e}')
-    exit(1)
-"
         else
           echo "❌ your_document.pdf not found!"
-          echo "Available files:"
-          ls -la
           exit 1
         fi
     
     - name: Run Creative Daily script
       id: creative_daily
       run: |
-        # Get date from input or use today
-        if [ -n "${{ github.event.inputs.target_date }}" ] && [ "${{ github.event.inputs.target_date }}" != "" ]; then
-          TARGET_DATE="${{ github.event.inputs.target_date }}"
-          echo "🎯 Using custom date: $TARGET_DATE"
-        else
-          TARGET_DATE=$(date +%Y-%m-%d)
-          echo "📅 Using today's date: $TARGET_DATE"
-        fi
+        TODAY=$(date +%Y-%m-%d)
+        echo "📅 Today's date: $TODAY"
         
-        # Build command
+        TARGET_DATE="${{ github.event.inputs.target_date }}"
+        NO_YOUTUBE="${{ github.event.inputs.no_youtube }}"
+        DURATION="${{ github.event.inputs.duration }}"
+        
         COMMAND="python check.py"
         
-        # Add date parameter
-        COMMAND="$COMMAND $TARGET_DATE"
+        if [ -n "$TARGET_DATE" ] && [ "$TARGET_DATE" != "null" ]; then
+          COMMAND="$COMMAND $TARGET_DATE"
+          echo "🎯 Using custom date: $TARGET_DATE"
+        else
+          COMMAND="$COMMAND $TODAY"
+          echo "📅 Using today's date: $TODAY"
+        fi
         
-        # Add no-youtube flag
-        if [ "${{ github.event.inputs.no_youtube }}" = "true" ]; then
+        if [ "$NO_YOUTUBE" = "true" ]; then
           COMMAND="$COMMAND --no-youtube"
           echo "📹 YouTube upload disabled"
         fi
         
-        # Add duration
-        DURATION="${{ github.event.inputs.duration }}"
         if [ -n "$DURATION" ] && [ "$DURATION" != "null" ]; then
           COMMAND="$COMMAND --duration=$DURATION"
           echo "⏱️ Using duration: ${DURATION}s"
@@ -137,35 +115,19 @@ except Exception as e:
         echo "🚀 Executing: $COMMAND"
         echo "========================================"
         
-        # Execute the command
         $COMMAND
-        EXIT_CODE=$?
         
-        if [ $EXIT_CODE -ne 0 ]; then
-          echo "❌ Script failed with exit code $EXIT_CODE"
-          exit $EXIT_CODE
-        fi
-        
-        # Save video info if created
         if [ -d "extracted_date_pages" ]; then
           VIDEO_FILE=$(ls extracted_date_pages/*.mp4 2>/dev/null | head -1)
           if [ -n "$VIDEO_FILE" ]; then
             echo "video_file=$VIDEO_FILE" >> $GITHUB_OUTPUT
-            echo "✅ Video created: $VIDEO_FILE"
           fi
-          
-          # Save YouTube URL if exists
-          for file in extracted_date_pages/*.mp4; do
-            if [ -f "$file" ]; then
-              echo "video_path=$file" >> $GITHUB_OUTPUT
-            fi
-          done
         fi
       env:
         PYTHONUNBUFFERED: 1
     
     - name: Upload video as artifact
-      if: always() && (success() || failure())
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: creative-daily-video-${{ github.run_id }}
@@ -173,7 +135,7 @@ except Exception as e:
         retention-days: 30
     
     - name: Upload images as artifact
-      if: always() && (success() || failure())
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: extracted-images-${{ github.run_id }}
@@ -181,24 +143,14 @@ except Exception as e:
         retention-days: 30
     
     - name: Upload all outputs
-      if: always() && (success() || failure())
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: creative-daily-outputs-${{ github.run_id }}
         path: |
           extracted_date_pages/
           *.log
-          *.txt
         retention-days: 14
-    
-    - name: Save updated token.pickle
-      if: success() && github.event.inputs.no_youtube != 'true'
-      run: |
-        if [ -f "token.pickle" ]; then
-          ENCODED_TOKEN=$(base64 -w 0 token.pickle 2>/dev/null || base64 token.pickle | tr -d '\n')
-          echo "🔑 Token encoded (length: ${#ENCODED_TOKEN})"
-          echo "💡 Update your YOUTUBE_TOKEN secret with this value"
-        fi
     
     - name: Summary
       if: always()
@@ -222,25 +174,5 @@ except Exception as e:
           echo "✅ Image files: $IMAGE_COUNT"
         else
           echo "❌ No extracted_date_pages directory found"
-          
-          # List current directory for debugging
-          echo ""
-          echo "📁 Current directory contents:"
-          ls -la
         fi
         echo "========================================"
-    
-    - name: Debug - Check files
-      if: failure()
-      run: |
-        echo "🔍 DEBUG - Current directory:"
-        pwd
-        echo ""
-        echo "🔍 DEBUG - All files:"
-        ls -la
-        echo ""
-        echo "🔍 DEBUG - Check if check.py exists:"
-        ls -la check.py 2>/dev/null || echo "check.py NOT found!"
-        echo ""
-        echo "🔍 DEBUG - Check if PDF exists:"
-        ls -la *.pdf 2>/dev/null || echo "No PDF files found!"
