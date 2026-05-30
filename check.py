@@ -6,7 +6,7 @@ FEATURES:
 - 60% zoomed image for large readable text
 - Yellow background
 - Background music support
-- PROPER THUMBNAIL: Image only, crops yellow background (captures at 2 seconds)
+- PROPER THUMBNAIL: Crops yellow background, stretches to fill all 4 corners
 - Random video duration (17-21 seconds)
 """
 
@@ -86,20 +86,10 @@ def extract_date_from_top_of_page(page_text: str) -> str:
 
 def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 2.0) -> str:
     """
-    Extract thumbnail from video - cropping to JUST the image content (no yellow background)
-    
-    At 2 seconds, the image is positioned well for capturing.
-    This function extracts just the image region, removing the yellow background.
-    
-    Args:
-        video_path: Path to video file
-        output_path: Where to save thumbnail (auto-generated if None)
-        time_seconds: Time in seconds to capture frame (default 2.0 seconds)
-    
-    Returns:
-        Path to saved thumbnail image (image-only, cropped)
+    Extract thumbnail from video - captures frame at 2 seconds,
+    removes yellow background, and stretches image to fill all 4 corners
     """
-    print(f"\n🎬 DEBUG: extract_thumbnail_from_video START")
+    print(f"\n🎬 Extracting thumbnail from video...")
     print(f"   📹 Video: {video_path}")
     print(f"   ⏱️  Time: {time_seconds} seconds")
     
@@ -107,176 +97,60 @@ def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_
         output_path = video_path.replace('.mp4', '_thumbnail.png')
     
     try:
-        # Try using moviepy first
         from moviepy import VideoFileClip
-        print(f"   ✅ Using moviepy for thumbnail extraction")
+        from PIL import Image
+        import numpy as np
         
         clip = VideoFileClip(video_path)
         frame = clip.get_frame(time_seconds)
         clip.close()
         
-        from PIL import Image
-        import numpy as np
-        
         # Convert frame to PIL Image
         img = Image.fromarray(frame.astype('uint8'), 'RGB')
-        
         print(f"   📸 Original frame size: {img.size}")
         
-        # Detect and crop out the yellow background
-        # The yellow background is RGB (255, 215, 0)
-        # We'll find where the image content starts and ends
-        
-        # Convert to numpy array for analysis
+        # Detect yellow background and get the image content
         img_array = np.array(img)
         
-        # Define yellow color range (with some tolerance)
-        yellow_lower = np.array([240, 200, 0])   # Lower bound for yellow
-        yellow_upper = np.array([255, 230, 50])  # Upper bound for yellow
+        # Define yellow color range (with tolerance)
+        yellow_lower = np.array([200, 180, 0])
+        yellow_upper = np.array([255, 240, 100])
         
-        # Find non-yellow pixels (these are the image content)
+        # Find non-yellow pixels (the actual image content)
         is_not_yellow = np.any((img_array < yellow_lower) | (img_array > yellow_upper), axis=2)
-        
-        # Find bounding box of non-yellow pixels
         non_yellow_coords = np.argwhere(is_not_yellow)
         
         if len(non_yellow_coords) > 0:
+            # Get bounding box of the image content
             y_min = non_yellow_coords[:, 0].min()
             y_max = non_yellow_coords[:, 0].max()
             x_min = non_yellow_coords[:, 1].min()
             x_max = non_yellow_coords[:, 1].max()
             
-            # Add small padding (optional)
-            padding = 5
-            y_min = max(0, y_min - padding)
-            y_max = min(img.height, y_max + padding)
-            x_min = max(0, x_min - padding)
-            x_max = min(img.width, x_max + padding)
-            
             # Crop to just the image content
             cropped_img = img.crop((x_min, y_min, x_max, y_max))
-            print(f"   ✂️ Cropped to: {cropped_img.size} (removed yellow background)")
+            print(f"   ✂️ Cropped image size: {cropped_img.size}")
             
-            cropped_img.save(output_path, quality=90)
+            # Target YouTube Shorts thumbnail size (aspect ratio 9:16)
+            target_width, target_height = 1080, 1920
+            
+            # Stretch cropped image to fill ALL 4 corners (no letterboxing)
+            stretched_img = cropped_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+            print(f"   📐 Stretched to: {stretched_img.size} (fills all 4 corners)")
+            
+            stretched_img.save(output_path, quality=95)
         else:
-            # Fallback: save full frame if detection fails
-            print(f"   ⚠️ Could not detect image content, saving full frame")
-            img.save(output_path, quality=90)
+            # If no yellow detected, just resize original to fill screen
+            print(f"   ⚠️ No yellow background detected, stretching full frame")
+            target_width, target_height = 1080, 1920
+            stretched_img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+            stretched_img.save(output_path, quality=95)
         
-        print(f"   ✅ Thumbnail saved: {output_path} ({os.path.getsize(output_path)} bytes)")
-        
-    except ImportError:
-        try:
-            # Fallback to OpenCV
-            import cv2
-            print(f"   ✅ Using OpenCV for thumbnail extraction")
-            
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                raise Exception("Cannot open video")
-            
-            # Set frame position
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_num = int(time_seconds * fps)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
-            
-            ret, frame = cap.read()
-            if ret:
-                # Convert BGR to RGB
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                img = Image.fromarray(frame_rgb)
-                
-                # Same cropping logic as above
-                img_array = np.array(img)
-                yellow_lower = np.array([240, 200, 0])
-                yellow_upper = np.array([255, 230, 50])
-                is_not_yellow = np.any((img_array < yellow_lower) | (img_array > yellow_upper), axis=2)
-                non_yellow_coords = np.argwhere(is_not_yellow)
-                
-                if len(non_yellow_coords) > 0:
-                    y_min = non_yellow_coords[:, 0].min()
-                    y_max = non_yellow_coords[:, 0].max()
-                    x_min = non_yellow_coords[:, 1].min()
-                    x_max = non_yellow_coords[:, 1].max()
-                    
-                    padding = 5
-                    y_min = max(0, y_min - padding)
-                    y_max = min(img.height, y_max + padding)
-                    x_min = max(0, x_min - padding)
-                    x_max = min(img.width, x_max + padding)
-                    
-                    cropped_img = img.crop((x_min, y_min, x_max, y_max))
-                    cropped_img.save(output_path, quality=90)
-                else:
-                    cv2.imwrite(output_path, frame)
-                
-                print(f"   ✅ Thumbnail saved: {output_path}")
-            else:
-                raise Exception("Cannot read frame")
-            
-            cap.release()
-            
-        except ImportError:
-            # Fallback to ffmpeg with cropping
-            print(f"   ✅ Using ffmpeg for thumbnail extraction")
-            import subprocess
-            
-            # First extract frame
-            temp_frame = output_path.replace('.png', '_temp_frame.png')
-            cmd_extract = [
-                'ffmpeg', '-y',
-                '-ss', str(time_seconds),
-                '-i', video_path,
-                '-vframes', '1',
-                '-q:v', '2',
-                temp_frame
-            ]
-            
-            result = subprocess.run(cmd_extract, capture_output=True, text=True)
-            if result.returncode == 0:
-                # Now crop using PIL
-                from PIL import Image
-                import numpy as np
-                
-                img = Image.open(temp_frame)
-                img_array = np.array(img)
-                yellow_lower = np.array([240, 200, 0])
-                yellow_upper = np.array([255, 230, 50])
-                is_not_yellow = np.any((img_array < yellow_lower) | (img_array > yellow_upper), axis=2)
-                non_yellow_coords = np.argwhere(is_not_yellow)
-                
-                if len(non_yellow_coords) > 0:
-                    y_min = non_yellow_coords[:, 0].min()
-                    y_max = non_yellow_coords[:, 0].max()
-                    x_min = non_yellow_coords[:, 1].min()
-                    x_max = non_yellow_coords[:, 1].max()
-                    
-                    padding = 5
-                    y_min = max(0, y_min - padding)
-                    y_max = min(img.height, y_max + padding)
-                    x_min = max(0, x_min - padding)
-                    x_max = min(img.width, x_max + padding)
-                    
-                    cropped_img = img.crop((x_min, y_min, x_max, y_max))
-                    cropped_img.save(output_path, quality=90)
-                else:
-                    img.save(output_path, quality=90)
-                
-                # Cleanup
-                if os.path.exists(temp_frame):
-                    os.remove(temp_frame)
-                
-                print(f"   ✅ Thumbnail saved: {output_path}")
-            else:
-                raise Exception(f"ffmpeg error: {result.stderr}")
-    
-    if os.path.exists(output_path):
-        file_size = os.path.getsize(output_path) / 1024
-        print(f"   📁 Thumbnail size: {file_size:.1f} KB")
-        print(f"🎬 DEBUG: extract_thumbnail_from_video COMPLETE")
+        print(f"   ✅ Thumbnail saved: {output_path}")
         return output_path
-    else:
-        print(f"   ❌ Failed to extract thumbnail")
+        
+    except Exception as e:
+        print(f"   ❌ Thumbnail extraction failed: {e}")
         return None
 
 def create_sliding_animation_video(image_path: str, text_content: str = None,
@@ -572,7 +446,7 @@ class CompleteCalendarExtractor:
             video_url = f"https://youtu.be/{response['id']}"
             print(f"   ✅ Uploaded! URL: {video_url}")
 
-            # PROPER THUMBNAIL - captures at 2 seconds, crops yellow background
+            # PROPER THUMBNAIL - crops yellow, stretches to fill all corners
             thumbnail_path = extract_thumbnail_from_video(video_path, time_seconds=2.0)
             if thumbnail_path and os.path.exists(thumbnail_path):
                 try:
@@ -581,7 +455,7 @@ class CompleteCalendarExtractor:
                         media_body=MediaFileUpload(thumbnail_path)
                     ).execute()
                     os.remove(thumbnail_path)
-                    print(f"   ✅ Thumbnail uploaded (image only, yellow background removed)")
+                    print(f"   ✅ Thumbnail uploaded (yellow removed, stretched to 1080x1920)")
                 except Exception as e:
                     print(f"   ⚠️ Thumbnail error: {e}")
 
