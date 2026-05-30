@@ -1,12 +1,7 @@
 """
-Creative Daily - Complete with Seamless Thumbnail Transition
-Extracts from PDF, creates sliding animation video, uploads to YouTube
-FEATURES:
-- Extracts date from top of page (Day Month Year format)
-- 60% zoomed image for large readable text
-- Yellow background
-- Thumbnail EXACTLY matches video's first frame
-- Seamless transition between thumbnail and video
+Creative Daily - Top Quarter Thumbnail + Reveal Animation
+- Thumbnail: Top quarter of image stretched to fill 1920x1080
+- Video: Starts with top quarter visible, reveals rest over time
 """
 
 import os
@@ -22,6 +17,17 @@ PLAYLIST_TITLE = "Creative Daily | Stupid Orange | Stupidest Broke Guy"
 PLAYLIST_DESCRIPTION = """Welcome to the Official Playlist of the Creative Daily from Stupid Orange. Here you will keep up to date with the message from Stupidest Broke Guy helping people to start collecting royalties from their creativity and live a true royal lifestyle.
 
 #Dubai #creativedaily #stupidestbrokeguy #UAE"""
+
+# Video settings
+VIDEO_DURATION = 18                     # Seconds
+ZOOM_FACTOR = 1.6                       # Zoom level
+START_VISIBLE_PERCENT = 25              # At t=0, only top 25% visible
+BACKGROUND_COLOR = (255, 215, 0)        # Yellow background
+EASING = "ease_in_out"                  # Animation easing
+
+# Thumbnail settings
+THUMBNAIL_SIZE = (1920, 1080)           # YouTube thumbnail size (fills all corners)
+THUMBNAIL_CAPTURE_PERCENT = 25          # Use top 25% of image for thumbnail
 # ===================================
 
 def find_free_port(start_port=8080, end_port=8090):
@@ -35,7 +41,7 @@ def find_free_port(start_port=8080, end_port=8090):
     return 8080
 
 def extract_date_from_top_of_page(page_text: str) -> str:
-    """Extract date from the top of the page (Day Month Year format)"""
+    """Extract date from the top of the page"""
     patterns = [
         r'(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})',
         r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})',
@@ -72,61 +78,36 @@ def extract_date_from_top_of_page(page_text: str) -> str:
                     continue
     return None
 
-def create_thumbnail_from_image(image_path: str, output_path: str = None, target_size: tuple = (1280, 720)) -> str:
+def create_thumbnail_from_top_quarter(image_path: str, output_path: str = None, target_size: tuple = (1920, 1080)) -> str:
     """
-    Create thumbnail that EXACTLY matches the video's first frame position.
-    This ensures seamless transition from thumbnail to video.
+    Create thumbnail from TOP QUARTER of image, stretched to fill entire screen.
+    This makes the thumbnail match the video's starting position at t=0.
     """
-    print(f"\n🖼️ DEBUG: create_thumbnail_from_image START")
-    print(f"   📷 Source image: {image_path}")
-    print(f"   📏 Target size: {target_size[0]}x{target_size[1]}")
+    print(f"\n🎬 Creating thumbnail from TOP QUARTER of image...")
+    print(f"   📷 Source: {image_path}")
+    print(f"   📐 Target size: {target_size[0]}x{target_size[1]} (fills all corners)")
     
     if output_path is None:
         output_path = image_path.replace('.png', '_thumbnail.png')
     
     try:
         from PIL import Image
-        import numpy as np
         
-        # Load the image
         img = Image.open(image_path)
         original_width, original_height = img.size
-        print(f"   📸 Original size: {original_width}x{original_height}")
+        print(f"   📸 Original: {original_width}x{original_height}")
         
-        # Video dimensions
-        video_width, video_height = 1920, 1080
+        # Crop to TOP QUARTER only
+        crop_height = int(original_height * THUMBNAIL_CAPTURE_PERCENT / 100)
+        cropped_img = img.crop((0, 0, original_width, crop_height))
+        print(f"   ✂️ Cropped to top {THUMBNAIL_CAPTURE_PERCENT}%: {cropped_img.size}")
         
-        # Calculate scaling to fit video height (same as video creation)
-        video_scale = video_height / original_height
-        print(f"   🔍 Video scale: {video_scale:.4f}")
+        # STRETCH to fill target size (touches all 4 corners, no letterboxing)
+        stretched_img = cropped_img.resize(target_size, Image.Resampling.LANCZOS)
+        print(f"   📐 Stretched to: {stretched_img.size} (fills all corners)")
         
-        # Calculate scaled dimensions (matches video creation)
-        scaled_width = int(original_width * video_scale)
-        scaled_height = video_height
-        print(f"   📐 Scaled dimensions: {scaled_width}x{scaled_height}")
-        
-        # Resize image to match video dimensions
-        try:
-            img_resized = img.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
-        except AttributeError:
-            img_resized = img.resize((scaled_width, scaled_height), Image.LANCZOS)
-        
-        # Crop to target size (1280x720 for YouTube thumbnail)
-        if scaled_width > target_size[0]:
-            # Center crop
-            left = (scaled_width - target_size[0]) // 2
-            right = left + target_size[0]
-            img_cropped = img_resized.crop((left, 0, right, target_size[1]))
-        else:
-            # Center crop width
-            left = 0
-            right = scaled_width
-            img_cropped = img_resized.crop((left, 0, right, target_size[1]))
-        
-        # Save thumbnail
-        img_cropped.save(output_path, quality=90)
-        file_size = os.path.getsize(output_path)
-        print(f"   ✅ Thumbnail created: {output_path} ({file_size} bytes)")
+        stretched_img.save(output_path, quality=95)
+        print(f"   ✅ Thumbnail saved: {output_path}")
         return output_path
         
     except Exception as e:
@@ -134,18 +115,23 @@ def create_thumbnail_from_image(image_path: str, output_path: str = None, target
         return None
 
 def create_sliding_animation_video(image_path: str, output_path: str = None,
-                                    bg_color: tuple = (255, 215, 0),
-                                    slide_duration: int = 18,
+                                    bg_color: tuple = BACKGROUND_COLOR,
+                                    slide_duration: int = VIDEO_DURATION,
                                     audio_file: str = None) -> str:
-    """Create video with image sliding up"""
+    """
+    Create video where at t=0 only top quarter is visible, revealing gradually.
+    Thumbnail matches this exact starting position.
+    """
     
     if output_path is None:
         output_path = image_path.replace('.png', '_video.mp4')
     
-    print(f"\n🎬 DEBUG: create_sliding_animation_video START")
-    print(f"   📷 Image path: {image_path}")
-    print(f"   ⏱️  Duration: {slide_duration} seconds")
-    print(f"   🎵 Audio file: {audio_file if audio_file else 'None'}")
+    print(f"\n🎬 Creating video with top quarter visible at start...")
+    print(f"   📷 Image: {image_path}")
+    print(f"   ⏱️  Duration: {slide_duration}s")
+    print(f"   📍 Start: Top {START_VISIBLE_PERCENT}% visible")
+    print(f"   📍 End: Full image visible")
+    print(f"   🎵 Audio: {audio_file if audio_file else 'None'}")
     
     try:
         from moviepy import ImageClip, CompositeVideoClip, ColorClip
@@ -163,20 +149,18 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
     try:
         from PIL import Image
         
-        print(f"   📸 Loading main image...")
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
+        print(f"   📸 Image: {img_width}x{img_height}")
         
-        # Calculate scaling to fill screen height (zoomed for large text)
-        scale = screen_height / img_height
-        zoom_factor = 1.6
-        scale = scale * zoom_factor
-        
+        # Apply zoom
+        fit_scale = min(screen_width / img_width, screen_height / img_height)
+        scale = fit_scale * ZOOM_FACTOR
         new_width = int(img_width * scale)
         new_height = int(img_height * scale)
+        print(f"   📐 After zoom: {new_width}x{new_height}")
         
-        print(f"   📐 Final size: {new_width}x{new_height}")
-        
+        # Resize image
         try:
             pil_img_resized = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         except AttributeError:
@@ -188,23 +172,45 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
         # Create image clip
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
         
-        # Slide up from bottom
-        start_y = screen_height
-        end_y = -new_height + screen_height * 0.2
+        # ============================================================
+        # ANIMATION: Start with only top quarter visible, reveal rest
+        # ============================================================
+        
+        # Calculate visible heights
+        visible_height_start = (new_height * START_VISIBLE_PERCENT) / 100
+        visible_height_end = new_height
+        
+        # Y positions: negative shifts image up (cuts off bottom)
+        start_y = screen_height - visible_height_start
+        end_y = screen_height - visible_height_end
+        
+        print(f"   📍 Start Y: {start_y:.1f} (only top {START_VISIBLE_PERCENT}% visible)")
+        print(f"   📍 End Y: {end_y:.1f} (full image visible)")
+        
+        # Easing function
+        def get_easing(progress):
+            if EASING == "linear":
+                return progress
+            elif EASING == "ease_in":
+                return progress * progress
+            elif EASING == "ease_out":
+                return 1 - (1 - progress) ** 2
+            else:  # ease_in_out
+                return progress * progress * (3 - 2 * progress)
         
         def image_slide_position(t):
             progress = min(1.0, t / slide_duration)
-            eased = progress * progress * (3 - 2 * progress)
+            eased = get_easing(progress)
             y = start_y + (end_y - start_y) * eased
             return ('center', y)
         
         image_clip = image_clip.with_position(image_slide_position)
         
-        # Background
+        # Create background
         background = ColorClip(size=(screen_width, screen_height), color=bg_color, duration=slide_duration)
         final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
         
-        # Audio handling
+        # ========== AUDIO ==========
         audio_added = False
         if audio_file and os.path.exists(audio_file):
             try:
@@ -219,6 +225,7 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
                     pass
                 final_clip = final_clip.with_audio(audio)
                 audio_added = True
+                print(f"   🎵 Audio added: {audio_file}")
             except Exception as e:
                 print(f"   ⚠️ Audio error: {e}")
         
@@ -233,10 +240,15 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
                         audio_clip = audio_clip.subclipped(0, slide_duration)
                         final_clip = final_clip.with_audio(audio_clip)
                         audio_added = True
+                        print(f"   🎵 Audio added from: {audio}")
                         break
                     except:
                         pass
         
+        if not audio_added:
+            print(f"   ℹ️ No audio - video will be silent")
+        
+        # Render video
         print(f"   💾 Rendering video...")
         audio_codec = 'aac' if audio_added else None
         final_clip.write_videofile(
@@ -266,22 +278,16 @@ class CompleteCalendarExtractor:
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
         self.playlist_id = None
-        print(f"🔧 DEBUG: CompleteCalendarExtractor initialized")
-        print(f"   📁 PDF path: {pdf_path}")
-        print(f"   📁 Output dir: {output_dir}")
+        print(f"🔧 Initialized: {pdf_path} -> {output_dir}")
 
     def find_all_date_pages(self) -> dict:
-        print(f"📄 DEBUG: find_all_date_pages START")
         if not os.path.exists(self.pdf_path):
-            print(f"❌ DEBUG: PDF not found: {self.pdf_path}")
             return {}
         
         doc = fitz.open(self.pdf_path)
-        print(f"   📄 DEBUG: PDF opened, {len(doc)} pages total")
         date_page_map = {}
         
         for page_num in range(len(doc)):
-            print(f"   🔍 DEBUG: Processing page {page_num + 1}/{len(doc)}")
             page = doc[page_num]
             text = page.get_text()
             date_str = extract_date_from_top_of_page(text)
@@ -295,16 +301,11 @@ class CompleteCalendarExtractor:
                     'date': date_str,
                     'text': text
                 })
-                print(f"   ✅ DEBUG: Page {page_num + 1} -> {date_str}")
         
         doc.close()
-        print(f"📊 DEBUG: Found {len(date_page_map)} unique dates")
         return date_page_map
 
     def convert_page_to_image(self, page_info: dict, dpi: int = 150) -> str:
-        print(f"   🖼️ DEBUG: convert_page_to_image START")
-        print(f"   📄 Page: {page_info['display_num']}, Date: {page_info['date']}")
-        
         doc = fitz.open(self.pdf_path)
         page = doc[page_info['page_num']]
         zoom = dpi / 72
@@ -316,58 +317,43 @@ class CompleteCalendarExtractor:
         image_path = os.path.join(self.output_dir, filename)
         
         pix.save(image_path)
-        print(f"   💾 DEBUG: Image saved: {filename} ({os.path.getsize(image_path)} bytes)")
         
         text_file = image_path.replace('.png', '_text.txt')
         with open(text_file, 'w', encoding='utf-8') as f:
             f.write(page_info['text'])
-        print(f"   📝 DEBUG: Text saved: {os.path.basename(text_file)}")
         
         doc.close()
-        print(f"   🖼️ DEBUG: convert_page_to_image COMPLETE")
         return image_path
 
     def ensure_image_for_date(self, target_date: str, dpi: int = 150) -> dict:
-        print(f"🔍 DEBUG: ensure_image_for_date START - Target: {target_date}")
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         pattern = f"{date_obj.day}_{date_obj.strftime('%B')}_{date_obj.year}_page_"
-        print(f"   📁 Pattern: {pattern}")
         
         if os.path.exists(self.output_dir):
-            files = os.listdir(self.output_dir)
-            print(f"   📁 Output dir has {len(files)} files")
-            for file in files:
+            for file in os.listdir(self.output_dir):
                 if file.startswith(pattern) and file.endswith('.png'):
-                    print(f"   ✅ DEBUG: Found existing image: {file}")
                     return {'status': 'exists', 'image_path': os.path.join(self.output_dir, file)}
         
-        print(f"   🔍 DEBUG: Image not found, scanning PDF...")
         date_map = self.find_all_date_pages()
         
         if target_date in date_map:
             page_info = date_map[target_date][0]
-            print(f"   📄 DEBUG: Found on page {page_info['display_num']}")
             image_path = self.convert_page_to_image(page_info, dpi)
             return {'status': 'extracted', 'image_path': image_path, 'page_num': page_info['display_num']}
         else:
-            print(f"❌ DEBUG: Date {target_date} not found in PDF!")
             return {'status': 'not_found', 'image_path': None}
 
     def get_page_text_content(self, image_path: str) -> str:
-        print(f"📝 DEBUG: get_page_text_content for {os.path.basename(image_path)}")
         text_file = image_path.replace('.png', '_text.txt')
         if os.path.exists(text_file):
             with open(text_file, 'r', encoding='utf-8') as f:
                 content = f.read()
                 lines = content.split('\n')
                 cleaned = [line.strip() for line in lines if line.strip() and not line.strip().isdigit()]
-                result = '\n\n'.join(cleaned[:20])
-                print(f"   📝 DEBUG: Extracted {len(result)} characters")
-                return result
+                return '\n\n'.join(cleaned[:20])
         return ""
 
     def get_page_title(self, image_path: str) -> str:
-        print(f"📝 DEBUG: get_page_title for {os.path.basename(image_path)}")
         text_file = image_path.replace('.png', '_text.txt')
         if os.path.exists(text_file):
             with open(text_file, 'r', encoding='utf-8') as f:
@@ -376,22 +362,15 @@ class CompleteCalendarExtractor:
                 for i, line in enumerate(lines):
                     if i < 20 and line.strip() and not line.strip().isdigit():
                         if any(word in line.lower() for word in ['creative', 'daily', 'authority', 'mission']):
-                            title = line.strip()
-                            print(f"   📝 DEBUG: Detected title: '{title}'")
-                            return title
+                            return line.strip()
         return "Creative Daily"
 
     def create_or_get_playlist(self, youtube) -> str:
-        print(f"📁 DEBUG: create_or_get_playlist START")
         playlists = youtube.playlists().list(part='snippet', mine=True, maxResults=50).execute()
-        print(f"   📁 DEBUG: Found {len(playlists.get('items', []))} playlists")
-        
         for playlist in playlists.get('items', []):
             if playlist['snippet']['title'] == PLAYLIST_TITLE:
-                print(f"   ✅ DEBUG: Found existing playlist: {playlist['id']}")
                 return playlist['id']
         
-        print(f"   📝 DEBUG: Creating new playlist...")
         response = youtube.playlists().insert(
             part='snippet,status',
             body={
@@ -399,13 +378,11 @@ class CompleteCalendarExtractor:
                 'status': {'privacyStatus': 'public'}
             }
         ).execute()
-        print(f"   ✅ DEBUG: Created playlist: {response['id']}")
         return response['id']
 
     def upload_to_youtube(self, video_path: str, target_date: str, page_text: str = "", video_title: str = "") -> dict:
-        print(f"\n📤 DEBUG: upload_to_youtube START")
-        print(f"   📹 Video path: {video_path}")
-        
+        print(f"\n📤 Uploading to YouTube...")
+
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         formatted_date = date_obj.strftime("%B %d, %Y")
         
@@ -439,31 +416,21 @@ class CompleteCalendarExtractor:
             if os.path.exists("token.pickle"):
                 with open("token.pickle", 'rb') as f:
                     credentials = pickle.load(f)
-                print(f"   📂 DEBUG: Loaded saved credentials")
             
             if not credentials or not credentials.valid:
                 if credentials and credentials.expired and credentials.refresh_token:
-                    print("   🔄 DEBUG: Refreshing token...")
                     credentials.refresh(Request())
                 else:
                     if not os.path.exists("client_secrets.json"):
-                        print(f"   ❌ DEBUG: No client_secrets.json found!")
                         return {'status': 'skipped', 'error': 'No credentials'}
                     
-                    print("   🔐 DEBUG: Opening browser for authentication...")
-                    free_port = find_free_port()
                     flow = InstalledAppFlow.from_client_secrets_file("client_secrets.json", SCOPES)
-                    try:
-                        credentials = flow.run_local_server(port=free_port, open_browser=True)
-                    except OSError:
-                        credentials = flow.run_local_server(open_browser=True)
+                    credentials = flow.run_local_server(port=find_free_port(), open_browser=True)
                 
                 with open("token.pickle", 'wb') as f:
                     pickle.dump(credentials, f)
-                print(f"   💾 DEBUG: Saved credentials")
             
             youtube = build('youtube', 'v3', credentials=credentials)
-            print(f"   ✅ DEBUG: YouTube service built")
             
             if self.playlist_id is None:
                 self.playlist_id = self.create_or_get_playlist(youtube)
@@ -482,22 +449,21 @@ class CompleteCalendarExtractor:
             request = youtube.videos().insert(part=','.join(body.keys()), body=body, media_body=media)
             response = request.execute()
             video_url = f"https://youtu.be/{response['id']}"
-            print(f"   ✅ Video uploaded! ID: {response['id']}")
-            print(f"   🖼️ Uploading custom thumbnail...")
+            print(f"   ✅ Uploaded! URL: {video_url}")
             
-            # Create matching thumbnail
+            # Create thumbnail from TOP QUARTER of image, stretched to fill all corners
             image_path = video_path.replace('_video.mp4', '.png')
-            thumbnail_path = create_thumbnail_from_image(image_path)
+            thumbnail_path = create_thumbnail_from_top_quarter(image_path, target_size=THUMBNAIL_SIZE)
+            
             if thumbnail_path and os.path.exists(thumbnail_path):
                 try:
                     youtube.thumbnails().set(
                         videoId=response['id'],
                         media_body=MediaFileUpload(thumbnail_path)
                     ).execute()
-                    print(f"   ✅ Custom thumbnail uploaded!")
-                    print(f"   🖼️ Thumbnail matches video start position for seamless transition!")
+                    print(f"   ✅ Thumbnail uploaded (top quarter, stretched to fill 1920x1080)")
                 except Exception as e:
-                    print(f"   ⚠️ Could not upload custom thumbnail: {e}")
+                    print(f"   ⚠️ Thumbnail error: {e}")
             
             youtube.playlistItems().insert(
                 part='snippet',
@@ -513,35 +479,32 @@ class CompleteCalendarExtractor:
             return {'status': 'success', 'video_url': video_url}
             
         except Exception as e:
-            print(f"   ❌ DEBUG: Upload error: {e}")
+            print(f"   ❌ Upload error: {e}")
             return {'status': 'failed', 'error': str(e)}
 
     def process_date(self, target_date: str, post_to_youtube: bool = True, 
-                     slide_duration: int = 18, audio_file: str = None) -> dict:
+                     slide_duration: int = VIDEO_DURATION, audio_file: str = None) -> dict:
         print("="*60)
-        print("📅 CREATIVE DAILY - SEAMLESS THUMBNAIL TRANSITION")
-        print("🎬 Thumbnail exactly matches video's first frame")
+        print("📅 CREATIVE DAILY - TOP QUARTER THUMBNAIL + REVEAL")
+        print("🎬 Thumbnail: Top quarter of image, stretched to fill screen")
+        print("🎬 Video: Top quarter visible at t=0, reveals rest over time")
         print("="*60)
         print(f"📅 Target Date: {target_date}")
-        print(f"⏱️  Duration: {slide_duration} seconds")
+        print(f"⏱️  Duration: {slide_duration}s")
+        print(f"🖼️  Thumbnail: Top {THUMBNAIL_CAPTURE_PERCENT}% stretched to {THUMBNAIL_SIZE[0]}x{THUMBNAIL_SIZE[1]}")
+        print(f"📹 Video: Starts with top {START_VISIBLE_PERCENT}% visible")
         print("="*60)
         
-        print(f"\n🔍 DEBUG: process_date - Step 1: Ensuring image for date")
         result = self.ensure_image_for_date(target_date)
         if result['status'] == 'not_found':
-            print(f"\n❌ DEBUG: Date {target_date} not found in PDF")
+            print(f"❌ Date {target_date} not found in PDF")
             return {'status': 'not_found', 'date': target_date}
         
-        print(f"\n🎨 Creating matching thumbnail...")
-        thumbnail_path = create_thumbnail_from_image(result['image_path'])
+        print(f"\n✅ Image ready: {os.path.basename(result['image_path'])}")
         
-        print(f"\n🔍 DEBUG: process_date - Step 2: Extracting text content")
         page_text = self.get_page_text_content(result['image_path'])
-        
-        print(f"\n🔍 DEBUG: process_date - Step 3: Detecting page title")
         page_title = self.get_page_title(result['image_path'])
         
-        print(f"\n🔍 DEBUG: process_date - Step 4: Creating video")
         video_path = create_sliding_animation_video(
             image_path=result['image_path'],
             slide_duration=slide_duration,
@@ -549,12 +512,10 @@ class CompleteCalendarExtractor:
         )
         
         if video_path is None:
-            print(f"\n❌ DEBUG: Video creation failed")
             return {'status': 'conversion_failed', 'date': target_date}
         
         youtube_result = None
         if post_to_youtube:
-            print(f"\n🔍 DEBUG: process_date - Step 5: Uploading to YouTube")
             youtube_result = self.upload_to_youtube(video_path, target_date, page_text, page_title)
         
         return {
@@ -570,7 +531,7 @@ class CompleteCalendarExtractor:
 
 if __name__ == "__main__":
     print("="*60)
-    print("🎬 CREATIVE DAILY - SEAMLESS TRANSITION (WORKING)")
+    print("🎬 CREATIVE DAILY - TOP QUARTER THUMBNAIL")
     print("="*60)
     
     PDF_PATH = "your_document.pdf"
@@ -578,7 +539,7 @@ if __name__ == "__main__":
     
     target_date = None
     post_to_youtube = True
-    slide_duration = 18
+    slide_duration = VIDEO_DURATION
     audio_file = None
     
     for arg in sys.argv[1:]:
@@ -598,6 +559,7 @@ if __name__ == "__main__":
     print(f"   📅 Date: {target_date}")
     print(f"   ⏱️  Duration: {slide_duration}s")
     print(f"   📹 YouTube: {'ON' if post_to_youtube else 'OFF'}")
+    print(f"   🖼️ Thumbnail: Top {THUMBNAIL_CAPTURE_PERCENT}% stretched to fill 1920x1080")
     
     if not os.path.exists(PDF_PATH):
         print(f"❌ PDF not found: {PDF_PATH}")
