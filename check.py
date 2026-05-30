@@ -22,7 +22,7 @@ PLAYLIST_DESCRIPTION = """Welcome to the Official Playlist of the Creative Daily
 #Dubai #creativedaily #stupidestbrokeguy #UAE"""
 
 # Video settings
-VIDEO_DURATION = 18                     # Seconds
+VIDEO_DURATION = 30                  # Seconds
 ZOOM_FACTOR = 2.7                      # Zoom level
 BACKGROUND_COLOR = (255, 215, 0)        # Yellow background
 
