@@ -15,6 +15,7 @@ import re
 import sys
 import pickle
 import socket
+import random
 from datetime import datetime
 import fitz  # PyMuPDF
 
