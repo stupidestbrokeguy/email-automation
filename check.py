@@ -82,7 +82,7 @@ def extract_date_from_top_of_page(page_text: str) -> str:
                     continue
     return None
 
-def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 2.0) -> str:
+def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 4.7) -> str:
     """
     Extract thumbnail from video - cropping to JUST the image content (no yellow background)
     
