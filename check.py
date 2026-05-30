@@ -6,7 +6,7 @@ FEATURES:
 - 60% zoomed image for large readable text
 - Yellow background
 - Background music support
-- Thumbnail: image only (no yellow background)
+- PROPER THUMBNAIL: Image only, no yellow background (cropped)
 - Random video duration (17-21 seconds)
 """
 
@@ -43,21 +43,14 @@ def extract_date_from_top_of_page(page_text: str) -> str:
     Looks for patterns like: "1 June 2026", "2 June 2026", etc.
     Returns date in YYYY-MM-DD format
     """
-    print(f"   🔍 Extracting date from page text...")
-    
     # Common date patterns found at top of pages
     patterns = [
-        # Day Month Year: 1 June 2026
         r'(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})',
-        # Month Day, Year: June 1, 2026
         r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})',
-        # Day-Month-Year: 1-June-2026
-        r'(\d{1,2})[-/](January|February|March|April|May|June|July|August|September|October|November|December)[-/](\d{4})',
     ]
     
     lines = page_text.split('\n')
-    # Check first 15 lines for date (should be at top)
-    for i, line in enumerate(lines[:15]):
+    for i, line in enumerate(lines[:10]):
         line = line.strip()
         if not line:
             continue
@@ -67,68 +60,62 @@ def extract_date_from_top_of_page(page_text: str) -> str:
             if match:
                 groups = match.groups()
                 try:
-                    if len(groups) == 3:
-                        # Determine which group is day, month, year
-                        if groups[0].isdigit() and len(groups[0]) <= 2:
-                            # Format: Day Month Year
-                            day = int(groups[0])
-                            month_str = groups[1]
-                            year = int(groups[2])
-                        elif groups[2].isdigit() and len(groups[2]) == 4:
-                            # Format: Month Day, Year
-                            month_str = groups[0]
-                            day = int(groups[1])
-                            year = int(groups[2])
-                        else:
-                            continue
-                        
-                        # Convert month name to number
-                        month_map = {
-                            'January': 1, 'February': 2, 'March': 3, 'April': 4,
-                            'May': 5, 'June': 6, 'July': 7, 'August': 8,
-                            'September': 9, 'October': 10, 'November': 11, 'December': 12
-                        }
-                        month = month_map.get(month_str, 1)
-                        
-                        date_obj = datetime(year, month, day)
-                        result = date_obj.strftime("%Y-%m-%d")
-                        print(f"   ✅ Found date: {result} (from line {i+1}: '{line[:50]}')")
-                        return result
-                except Exception as e:
-                    print(f"   ⚠️ Date parsing error: {e}")
+                    if groups[0].isdigit() and len(groups[0]) <= 2:
+                        day = int(groups[0])
+                        month_str = groups[1]
+                        year = int(groups[2])
+                    else:
+                        month_str = groups[0]
+                        day = int(groups[1])
+                        year = int(groups[2])
+                    
+                    month_map = {
+                        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+                        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+                        'September': 9, 'October': 10, 'November': 11, 'December': 12
+                    }
+                    month = month_map.get(month_str, 1)
+                    
+                    date_obj = datetime(year, month, day)
+                    result = date_obj.strftime("%Y-%m-%d")
+                    print(f"   ✅ Found date: {result} (from: '{line[:50]}')")
+                    return result
+                except:
                     continue
     
-    print(f"   ⚠️ No date found in page text")
     return None
 
 def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 1.0) -> str:
     """
     Extract thumbnail from video - cropping to JUST the image content (no yellow background)
+    This is the PROPER thumbnail function that was working before
     """
-    print(f"\n🎬 Extracting thumbnail from video...")
+    print(f"\n🎬 Extracting thumbnail from video (image only, cropping yellow background)...")
     
     if output_path is None:
         output_path = video_path.replace('.mp4', '_thumbnail.png')
     
     try:
         from moviepy import VideoFileClip
-        print(f"   ✅ Using moviepy for thumbnail extraction")
+        from PIL import Image
+        import numpy as np
         
         clip = VideoFileClip(video_path)
         frame = clip.get_frame(time_seconds)
         clip.close()
         
-        from PIL import Image
-        import numpy as np
-        
-        # Convert frame to PIL Image
+        # Convert to PIL Image
         img = Image.fromarray(frame.astype('uint8'), 'RGB')
         print(f"   📸 Original frame size: {img.size}")
         
-        # Detect and crop out the yellow background
+        # Detect yellow background and crop it out
         img_array = np.array(img)
-        yellow_lower = np.array([240, 200, 0])
-        yellow_upper = np.array([255, 230, 50])
+        
+        # Yellow color range (with tolerance)
+        yellow_lower = np.array([200, 180, 0])
+        yellow_upper = np.array([255, 240, 100])
+        
+        # Find non-yellow pixels (the actual image content)
         is_not_yellow = np.any((img_array < yellow_lower) | (img_array > yellow_upper), axis=2)
         non_yellow_coords = np.argwhere(is_not_yellow)
         
@@ -138,17 +125,20 @@ def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_
             x_min = non_yellow_coords[:, 1].min()
             x_max = non_yellow_coords[:, 1].max()
             
-            padding = 5
+            # Add small padding
+            padding = 10
             y_min = max(0, y_min - padding)
             y_max = min(img.height, y_max + padding)
             x_min = max(0, x_min - padding)
             x_max = min(img.width, x_max + padding)
             
+            # Crop to just the image content
             cropped_img = img.crop((x_min, y_min, x_max, y_max))
-            print(f"   ✂️ Cropped to: {cropped_img.size} (removed yellow background)")
+            print(f"   ✂️ Cropped to: {cropped_img.size} (yellow background removed)")
             cropped_img.save(output_path, quality=95)
         else:
-            print(f"   ⚠️ Could not detect image content, saving full frame")
+            # Fallback: save full frame
+            print(f"   ⚠️ Could not detect yellow background, saving full frame")
             img.save(output_path, quality=95)
         
         print(f"   ✅ Thumbnail saved: {output_path}")
@@ -170,18 +160,12 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
     
     print(f"\n🎬 Creating video: {os.path.basename(image_path)}")
     print(f"   ⏱️  Duration: {slide_duration} seconds")
-    if audio_file:
-        print(f"   🎵 Audio: {audio_file}")
     
     try:
         from moviepy import ImageClip, CompositeVideoClip, ColorClip
         from moviepy.audio.io.AudioFileClip import AudioFileClip
     except ImportError:
-        try:
-            from moviepy.editor import ImageClip, CompositeVideoClip, ColorClip, AudioFileClip
-        except ImportError as e:
-            print(f"   ❌ moviepy import failed: {e}")
-            return None
+        from moviepy.editor import ImageClip, CompositeVideoClip, ColorClip, AudioFileClip
     
     screen_width, screen_height = 1920, 1080
     
@@ -231,56 +215,40 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
         
         if audio_file and os.path.exists(audio_file):
             try:
-                print(f"   🎵 Loading audio: {audio_file}")
                 audio = AudioFileClip(audio_file)
-                print(f"   🎵 Audio duration: {audio.duration:.2f}s")
-                
-                # Loop if shorter than video
                 if audio.duration < slide_duration:
                     loops = int(slide_duration / audio.duration) + 1
-                    print(f"   🔁 Looping audio {loops} times")
                     audio = audio.loop(loops)
-                
-                # Trim to exact duration
                 audio = audio.subclipped(0, slide_duration)
-                
-                # Adjust volume (25% of original)
                 try:
                     audio = audio.with_volume_scaled(0.25)
-                except AttributeError:
+                except:
                     try:
                         audio = audio.volumex(0.25)
                     except:
                         pass
-                
                 final_clip = final_clip.with_audio(audio)
                 audio_added = True
-                print(f"   ✅ Audio added successfully")
-                
+                print(f"   🎵 Audio added: {audio_file}")
             except Exception as e:
                 print(f"   ⚠️ Audio error: {e}")
         
-        # Try default audio files if none specified
-        if not audio_added and audio_file is None:
-            default_audio_files = ["background_music.mp3", "audio.mp3", "music.mp3", "bgm.mp3"]
-            for audio in default_audio_files:
+        # Try default audio files
+        if not audio_added:
+            default_audio = ["background_music.mp3", "audio.mp3", "music.mp3", "bgm.mp3"]
+            for audio in default_audio:
                 if os.path.exists(audio):
                     try:
-                        print(f"   🎵 Found audio: {audio}")
                         audio_clip = AudioFileClip(audio)
                         if audio_clip.duration < slide_duration:
                             audio_clip = audio_clip.loop(int(slide_duration / audio_clip.duration) + 1)
                         audio_clip = audio_clip.subclipped(0, slide_duration)
-                        try:
-                            audio_clip = audio_clip.with_volume_scaled(0.25)
-                        except:
-                            pass
                         final_clip = final_clip.with_audio(audio_clip)
                         audio_added = True
-                        print(f"   ✅ Audio added from: {audio}")
+                        print(f"   🎵 Audio added from: {audio}")
                         break
-                    except Exception as e:
-                        print(f"   ⚠️ Could not load {audio}: {e}")
+                    except:
+                        pass
         
         if not audio_added:
             print(f"   ℹ️ No audio added - video will be silent")
@@ -300,14 +268,11 @@ def create_sliding_animation_video(image_path: str, text_content: str = None,
         if os.path.exists(temp_img_path):
             os.remove(temp_img_path)
         
-        file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
-        print(f"   ✅ Video created: {os.path.basename(output_path)} ({file_size_mb:.1f} MB)")
+        print(f"   ✅ Video created: {os.path.basename(output_path)}")
         return output_path
         
     except Exception as e:
         print(f"   ❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
         return None
 
 
@@ -320,48 +285,34 @@ class CompleteCalendarExtractor:
         print(f"🔧 Initialized: {pdf_path} -> {output_dir}")
 
     def find_page_by_date(self, target_date: str) -> dict:
-        """
-        Find which page contains the target date
-        Scans PDF pages and extracts date from top of each page
-        """
+        """Find which page contains the target date"""
         print(f"🔍 Looking for date: {target_date}")
         
         if not os.path.exists(self.pdf_path):
-            print(f"❌ PDF not found: {self.pdf_path}")
+            print(f"❌ PDF not found")
             return None
         
         doc = fitz.open(self.pdf_path)
         total_pages = len(doc)
         print(f"📄 PDF has {total_pages} pages")
         
-        # Convert target date to display format for comparison
-        target_dt = datetime.strptime(target_date, "%Y-%m-%d")
-        target_day = target_dt.day
-        target_month = target_dt.strftime("%B")
-        target_year = target_dt.year
-        
         for page_num in range(total_pages):
             page = doc[page_num]
             text = page.get_text()
-            
-            # Extract date from top of this page
             found_date = extract_date_from_top_of_page(text)
             
-            if found_date:
-                print(f"   📄 Page {page_num + 1} has date: {found_date}")
-                
-                if found_date == target_date:
-                    print(f"   ✅ Found matching page {page_num + 1} for {target_date}")
-                    doc.close()
-                    return {
-                        'page_num': page_num,
-                        'display_num': page_num + 1,
-                        'date': target_date,
-                        'text': text
-                    }
+            if found_date and found_date == target_date:
+                print(f"   ✅ Found on page {page_num + 1}")
+                doc.close()
+                return {
+                    'page_num': page_num,
+                    'display_num': page_num + 1,
+                    'date': target_date,
+                    'text': text
+                }
         
         doc.close()
-        print(f"❌ No page found with date {target_date}")
+        print(f"❌ Date {target_date} not found")
         return None
 
     def convert_page_to_image(self, page_info: dict, dpi: int = 150) -> str:
@@ -389,22 +340,20 @@ class CompleteCalendarExtractor:
         return image_path
 
     def ensure_image_for_date(self, target_date: str, dpi: int = 150) -> dict:
-        # Check if image already exists
+        # Check existing
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         pattern = f"{date_obj.day}_{date_obj.strftime('%B')}_{date_obj.year}_page_"
         
         if os.path.exists(self.output_dir):
             for file in os.listdir(self.output_dir):
                 if file.startswith(pattern) and file.endswith('.png'):
-                    print(f"   ✅ Found existing image: {file}")
                     return {'status': 'exists', 'image_path': os.path.join(self.output_dir, file)}
         
-        # Find page by date
+        # Find and convert
         page_info = self.find_page_by_date(target_date)
         if page_info is None:
             return {'status': 'not_found', 'image_path': None}
         
-        # Convert to image
         image_path = self.convert_page_to_image(page_info, dpi)
         return {'status': 'extracted', 'image_path': image_path, 'page_num': page_info['display_num']}
 
@@ -412,18 +361,13 @@ class CompleteCalendarExtractor:
         text_file = image_path.replace('.png', '_text.txt')
         if os.path.exists(text_file):
             with open(text_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                # Return first 2000 characters for description
-                return content[:2000]
+                return f.read()[:2000]
         return ""
 
     def create_or_get_playlist(self, youtube) -> str:
-        print(f"📁 Creating/getting playlist...")
         playlists = youtube.playlists().list(part='snippet', mine=True, maxResults=50).execute()
-        
         for playlist in playlists.get('items', []):
             if playlist['snippet']['title'] == PLAYLIST_TITLE:
-                print(f"   ✅ Found existing playlist")
                 return playlist['id']
 
         response = youtube.playlists().insert(
@@ -433,35 +377,25 @@ class CompleteCalendarExtractor:
                 'status': {'privacyStatus': 'public'}
             }
         ).execute()
-        print(f"   ✅ Created playlist")
         return response['id']
 
-    def upload_to_youtube(self, video_path: str, target_date: str, page_text: str = "", video_title: str = "") -> dict:
+    def upload_to_youtube(self, video_path: str, target_date: str, page_text: str = "") -> dict:
         print(f"\n📤 Uploading to YouTube...")
 
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         formatted_date = date_obj.strftime("%B %d, %Y")
+        
+        title = f"Creative Daily | {formatted_date} | Stupid Orange | Stupidest Broke Guy"
+        full_title = f"{title} | #creativedaily #stupidestbrokeguy #UAE #Dubai"
 
-        if video_title and video_title != "Creative Daily":
-            main_title = video_title
-        else:
-            main_title = f"Creative Daily | {formatted_date}"
-
-        full_title = f"{main_title} | Stupid Orange | Stupidest Broke Guy | #creativedaily #stupidestbrokeguy #UAE #Dubai"
-
-        video_description = f"""{page_text[:1500] if page_text else ''}
+        description = f"""{page_text[:1500]}
 
 📅 Creative Daily - {formatted_date}
 
-👉 Join the Stupid Solomon Fashion Line: www.stupidorange.com
-👉 Get the latest Creative Daily: creativedaily.stupidorange.com
+👉 Share your stupid broke moment: www.stupidorange.com/share-moment/
+👉 Get the Creative Daily: creativedaily.stupidorange.com
 
-Follow:
-🎬 YouTube: @stupidestbrokeguy
-📱 TikTok: @stupidestbrokeguy
-
-{full_title}
-#creativedaily #stupidestbrokeguy #UAE #Dubai #fyp
+#creativedaily #stupidestbrokeguy #UAE #Dubai
 """
 
         try:
@@ -477,24 +411,17 @@ Follow:
             if os.path.exists("token.pickle"):
                 with open("token.pickle", 'rb') as f:
                     credentials = pickle.load(f)
-                print(f"   📂 Loaded saved credentials")
 
             if not credentials or not credentials.valid:
                 if credentials and credentials.expired and credentials.refresh_token:
-                    print("   🔄 Refreshing token...")
                     credentials.refresh(Request())
                 else:
                     if not os.path.exists("client_secrets.json"):
-                        print(f"   ❌ No client_secrets.json found!")
                         return {'status': 'skipped', 'error': 'No credentials'}
-                    
-                    print("   🔐 Opening browser for authentication...")
                     flow = InstalledAppFlow.from_client_secrets_file("client_secrets.json", SCOPES)
                     credentials = flow.run_local_server(port=find_free_port(), open_browser=True)
-                
                 with open("token.pickle", 'wb') as f:
                     pickle.dump(credentials, f)
-                print(f"   💾 Saved credentials")
 
             youtube = build('youtube', 'v3', credentials=credentials)
 
@@ -504,8 +431,8 @@ Follow:
             body = {
                 'snippet': {
                     'title': full_title[:100],
-                    'description': video_description[:5000],
-                    'tags': ['Dubai', 'creativedaily', 'stupidestbrokeguy', 'UAE', target_date],
+                    'description': description[:5000],
+                    'tags': ['creativedaily', 'stupidestbrokeguy', 'Dubai', 'UAE', target_date],
                     'categoryId': '22'
                 },
                 'status': {'privacyStatus': 'public', 'selfDeclaredMadeForKids': False}
@@ -517,7 +444,7 @@ Follow:
             video_url = f"https://youtu.be/{response['id']}"
             print(f"   ✅ Uploaded! URL: {video_url}")
 
-            # Extract and upload thumbnail (image only, no yellow background)
+            # PROPER THUMBNAIL - Image only, no yellow background
             thumbnail_path = extract_thumbnail_from_video(video_path, time_seconds=1.0)
             if thumbnail_path and os.path.exists(thumbnail_path):
                 try:
@@ -526,7 +453,7 @@ Follow:
                         media_body=MediaFileUpload(thumbnail_path)
                     ).execute()
                     os.remove(thumbnail_path)
-                    print(f"   ✅ Thumbnail uploaded (image only, no yellow background)")
+                    print(f"   ✅ Thumbnail uploaded (image only, yellow background removed)")
                 except Exception as e:
                     print(f"   ⚠️ Thumbnail error: {e}")
 
@@ -550,30 +477,20 @@ Follow:
 
     def process_date(self, target_date: str, post_to_youtube: bool = True, 
                      slide_duration: int = None, audio_file: str = None) -> dict:
-        # Random duration if not specified
         if slide_duration is None:
             slide_duration = random.randint(17, 21)
-            print(f"🎲 Random duration: {slide_duration}s (17-21 range)")
+            print(f"🎲 Random duration: {slide_duration}s")
         
         print("="*60)
         print(f"📅 Creative Daily - {target_date}")
         print(f"⏱️  Duration: {slide_duration}s")
-        print(f"🎵 Audio: {audio_file if audio_file else 'Auto-detect or silent'}")
-        print(f"📹 YouTube: {'ON' if post_to_youtube else 'OFF'}")
         print("="*60)
 
-        # Get image for date
         result = self.ensure_image_for_date(target_date)
         if result['status'] == 'not_found':
-            print(f"❌ Date {target_date} not found in PDF")
             return {'status': 'not_found', 'date': target_date}
 
-        print(f"✅ Image ready: {os.path.basename(result['image_path'])}")
-
-        # Extract content
         page_text = self.get_page_text_content(result['image_path'])
-
-        # Create video
         video_path = create_sliding_animation_video(
             image_path=result['image_path'],
             slide_duration=slide_duration,
@@ -581,11 +498,8 @@ Follow:
         )
 
         if video_path is None:
-            return {'status': 'conversion_failed', 'date': target_date}
+            return {'status': 'conversion_failed'}
 
-        print(f"✅ Video created: {video_path}")
-
-        # Upload to YouTube
         youtube_result = None
         if post_to_youtube:
             youtube_result = self.upload_to_youtube(video_path, target_date, page_text)
@@ -593,9 +507,7 @@ Follow:
         return {
             'status': 'success',
             'date': target_date,
-            'image_path': result['image_path'],
             'video_path': video_path,
-            'page_num': result.get('page_num', 0),
             'youtube': youtube_result
         }
 
@@ -613,64 +525,38 @@ if __name__ == "__main__":
     slide_duration = None
     audio_file = None
 
-    # Parse arguments
     for arg in sys.argv[1:]:
         if arg == "--no-youtube":
             post_to_youtube = False
-            print("📹 YouTube upload disabled")
         elif arg.startswith("--duration="):
             slide_duration = int(arg.split("=")[1])
-            print(f"⏱️ Duration set to {slide_duration}s")
         elif arg.startswith("--audio="):
             audio_file = arg.split("=")[1]
-            print(f"🎵 Audio file: {audio_file}")
         elif arg.endswith(".mp3") and os.path.exists(arg):
             audio_file = arg
-            print(f"🎵 Audio file detected: {audio_file}")
         elif re.match(r'\d{4}-\d{2}-\d{2}', arg):
             target_date = arg
-            print(f"📅 Target date: {target_date}")
 
-    # Default to random duration
     if slide_duration is None:
         slide_duration = random.randint(17, 21)
-        print(f"🎲 Random duration: {slide_duration}s (17-21 range)")
 
-    # Default to today
     if target_date is None:
         target_date = datetime.now().strftime("%Y-%m-%d")
-        print(f"📅 Using today: {target_date}")
 
-    print(f"\n🎯 Final: {target_date}, Duration: {slide_duration}s")
+    print(f"🎯 Target: {target_date}, Duration: {slide_duration}s")
 
-    # Check PDF
     if not os.path.exists(PDF_PATH):
-        print(f"❌ PDF not found: {PDF_PATH}")
+        print(f"❌ PDF not found")
         sys.exit(1)
-    
-    pdf_size = os.path.getsize(PDF_PATH) / (1024 * 1024)
-    print(f"✅ PDF: {PDF_PATH} ({pdf_size:.1f} MB)")
 
-    # Process
     processor = CompleteCalendarExtractor(PDF_PATH, OUTPUT_DIR)
-    result = processor.process_date(target_date, post_to_youtube, 
-                                     slide_duration=slide_duration, 
-                                     audio_file=audio_file)
-
-    print("\n" + "="*60)
-    print("📋 FINAL RESULT")
-    print("="*60)
+    result = processor.process_date(target_date, post_to_youtube, slide_duration, audio_file)
 
     if result['status'] == 'success':
-        print(f"✅ SUCCESS!")
-        print(f"   📅 Date: {result['date']}")
-        print(f"   🎬 Video: {result.get('video_path', 'N/A')}")
-        
+        print(f"\n✅ SUCCESS!")
         if result.get('youtube') and result['youtube']['status'] == 'success':
-            print(f"\n📹 POSTED TO YOUTUBE!")
-            print(f"   🔗 URL: {result['youtube']['video_url']}")
-            print(f"   🖼️ Thumbnail: Image only (no yellow background)")
+            print(f"📹 YouTube: {result['youtube']['video_url']}")
         sys.exit(0)
     else:
-        print(f"❌ FAILED: {result['status']}")
+        print(f"\n❌ FAILED")
         sys.exit(1)
