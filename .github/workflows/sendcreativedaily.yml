@@ -116,7 +116,7 @@ jobs:
     - name: Run Creative Daily script
       id: creative_daily
       run: |
-        TODAY=$(date +'%Y-%m-%d')
+        TODAY=2026-06-27
         echo "📅 Processing date: ${TODAY}"
         
         # Build command with optional parameters
