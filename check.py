@@ -4,7 +4,6 @@ Creative Daily - Thumbnail from Visible PNG Portion at t=1 second
 - Removes yellow background from ALL sides
 - Stretches content to fill all 4 corners of 1920x1080
 - NO yellow, NO black bars, just image content
-- Full image slides into view from t=0 to t=25s
 """
 
 import os
@@ -23,20 +22,18 @@ PLAYLIST_DESCRIPTION = """Welcome to the Official Playlist of the Creative Daily
 #Dubai #creativedaily #stupidestbrokeguy #UAE"""
 
 # Video settings
-VIDEO_DURATION = 25                     # Seconds - 25 seconds for full slide animation
-ZOOM_FACTOR = 2.7                       # Zoom level
+VIDEO_DURATION = 18                     # Seconds
+ZOOM_FACTOR = 2.7                      # Zoom level
 BACKGROUND_COLOR = (255, 215, 0)        # Yellow background
 
-# Animation settings - Image slides from bottom to top (entire image becomes visible)
-# At t=0: Image starts off-screen at bottom
-# At t=25s: Image has slid up to show all content
-START_Y_POSITION = 1080                 # Start at bottom of screen (off-screen)
-END_Y_POSITION = -2000                  # End position (off-screen top, adjust based on image height)
+# Start position - adjust this to control what part of PNG is visible at t=0
+# Lower number = less visible, Higher number = more visible
+START_Y_POSITION = 780                  # ← CHANGE THIS
 
-EASING = "linear"                       # Linear easing for smooth continuous slide
+EASING = "ease_in_out"                  # Animation easing
 
 # Thumbnail settings
-THUMBNAIL_CAPTURE_TIME = 1.0            # Capture thumbnail at t=1 second
+THUMBNAIL_CAPTURE_TIME = 0.0            # Capture thumbnail at t=1 second (or adjust)
 # ===================================
 
 def find_free_port(start_port=8080, end_port=8090):
@@ -86,7 +83,7 @@ def extract_date_from_top_of_page(page_text: str) -> str:
                     continue
     return None
 
-def get_position_at_time(t: float, start_y: float, end_y: float, duration: float, easing: str = "linear") -> float:
+def get_position_at_time(t: float, start_y: float, end_y: float, duration: float, easing: str = "ease_in_out") -> float:
     """Calculate Y position at specific time t using same easing as video"""
     progress = min(1.0, t / duration)
     
@@ -101,9 +98,8 @@ def get_position_at_time(t: float, start_y: float, end_y: float, duration: float
     
     return start_y + (end_y - start_y) * eased
 
-def create_thumbnail_from_visible_area(image_path: str, start_y_position: float, end_y_position: float,
-                                       capture_time: float = 1.0, output_path: str = None, 
-                                       target_size: tuple = (1920, 1080)) -> str:
+def create_thumbnail_from_visible_area(image_path: str, start_y_position: float, capture_time: float = 1.0, 
+                                       output_path: str = None, target_size: tuple = (1920, 1080)) -> str:
     """
     Create thumbnail from ONLY the part of PNG visible on screen at t=capture_time.
     Crops out yellow from ALL sides. Stretches content to fill all 4 corners.
@@ -121,7 +117,8 @@ def create_thumbnail_from_visible_area(image_path: str, start_y_position: float,
         
         # Get position at capture time
         video_duration = VIDEO_DURATION
-        current_y = get_position_at_time(capture_time, start_y_position, end_y_position, video_duration, EASING)
+        end_y = 0
+        current_y = get_position_at_time(capture_time, start_y_position, end_y, video_duration, EASING)
         print(f"   📍 Y position at t={capture_time}: {current_y:.1f}")
         
         img = Image.open(image_path)
@@ -140,6 +137,11 @@ def create_thumbnail_from_visible_area(image_path: str, start_y_position: float,
         print(f"   📐 Scaled dimensions: {scaled_width}x{scaled_height}")
         
         # Calculate which part of original PNG is visible at current_y
+        # The image clip is positioned with its top edge at current_y (screen coordinates)
+        # So the visible portion in original PNG coordinates is:
+        # crop_top = max(0, -current_y / scale) when current_y is negative
+        # crop_bottom = min(original_height, (screen_height - current_y) / scale)
+        
         if current_y < 0:
             # Image is positioned off-screen top (partially visible)
             crop_top = int(abs(current_y) / scale)
@@ -149,18 +151,11 @@ def create_thumbnail_from_visible_area(image_path: str, start_y_position: float,
             crop_top = 0
             visible_height_screen = min(screen_height - current_y, scaled_height)
         
-        if visible_height_screen > 0:
-            crop_bottom = int(crop_top + (visible_height_screen / scale))
-        else:
-            crop_bottom = crop_top
+        crop_bottom = int(crop_top + (visible_height_screen / scale))
         
         # Ensure bounds
         crop_top = max(0, min(crop_top, original_height))
         crop_bottom = max(0, min(crop_bottom, original_height))
-        
-        if crop_bottom <= crop_top:
-            print(f"   ⚠️ No visible content at t={capture_time}")
-            return None
         
         print(f"   ✂️ Visible PNG portion: Y={crop_top} to Y={crop_bottom} (height: {crop_bottom - crop_top}px)")
         
@@ -205,10 +200,11 @@ def create_thumbnail_from_visible_area(image_path: str, start_y_position: float,
             print(f"   ⚠️ No yellow detected - using full visible portion")
         
         # STRETCH to fill target (touches all 4 corners)
+        # Using LANCZOS for high quality
         stretched_img = content_only.resize(target_size, Image.Resampling.LANCZOS)
         print(f"   📐 Stretched to fill all corners: {stretched_img.size}")
         
-        # Ensure no transparency
+        # Ensure no transparency (fill with black if any alpha)
         if stretched_img.mode == 'RGBA':
             background = Image.new('RGB', stretched_img.size, (0, 0, 0))
             background.paste(stretched_img, mask=stretched_img.split()[3])
@@ -228,19 +224,16 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
                                     bg_color: tuple = BACKGROUND_COLOR,
                                     slide_duration: int = VIDEO_DURATION,
                                     audio_file: str = None,
-                                    start_y: float = START_Y_POSITION,
-                                    end_y: float = END_Y_POSITION) -> str:
-    """Create video with image sliding from bottom to top (full scroll)"""
+                                    start_y: float = START_Y_POSITION) -> str:
+    """Create video starting at specified Y position."""
     
     if output_path is None:
         output_path = image_path.replace('.png', '_video.mp4')
     
-    print(f"\n🎬 Creating video with full slide animation...")
+    print(f"\n🎬 Creating video...")
     print(f"   📷 Image: {image_path}")
     print(f"   ⏱️  Duration: {slide_duration}s")
-    print(f"   📍 t=0 position: Y={start_y} (off-screen bottom)")
-    print(f"   📍 t={slide_duration}s position: Y={end_y} (off-screen top)")
-    print(f"   🎬 Animation: Image slides up continuously to reveal all content")
+    print(f"   📍 t=0 position: Y={start_y}")
     
     try:
         from moviepy import ImageClip, CompositeVideoClip, ColorClip
@@ -265,9 +258,6 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
         new_width = int(img_width * scale)
         new_height = int(img_height * scale)
         
-        print(f"   📐 Original: {img_width}x{img_height}")
-        print(f"   📐 Scaled: {new_width}x{new_height}")
-        
         try:
             pil_img_resized = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         except AttributeError:
@@ -277,6 +267,8 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
         pil_img_resized.save(temp_img_path)
         
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
+        
+        end_y = 0
         
         def get_easing(progress):
             if EASING == "linear":
@@ -332,7 +324,7 @@ def create_sliding_animation_video(image_path: str, output_path: str = None,
         if not audio_added:
             print(f"   ℹ️ No audio - video will be silent")
         
-        print(f"   💾 Rendering 25-second video...")
+        print(f"   💾 Rendering video...")
         audio_codec = 'aac' if audio_added else None
         final_clip.write_videofile(
             output_path,
@@ -533,9 +525,8 @@ class CompleteCalendarExtractor:
             image_path = video_path.replace('_video.mp4', '.png')
             thumbnail_path = create_thumbnail_from_visible_area(
                 image_path, 
-                START_Y_POSITION,
-                END_Y_POSITION,
-                capture_time=THUMBNAIL_CAPTURE_TIME,
+                START_Y_POSITION, 
+                capture_time=THUMBNAIL_CAPTURE_TIME,  # ← NOW USING 1 SECOND
                 target_size=(1920, 1080)
             )
             
@@ -569,10 +560,8 @@ class CompleteCalendarExtractor:
     def process_date(self, target_date: str, post_to_youtube: bool = True, 
                      slide_duration: int = VIDEO_DURATION, audio_file: str = None) -> dict:
         print("="*60)
-        print("📅 CREATIVE DAILY - FULL SLIDE ANIMATION")
-        print(f"🎬 Animation: Image slides from bottom to top over {slide_duration} seconds")
-        print(f"🎬 Start Y: {START_Y_POSITION} (off-screen bottom)")
-        print(f"🎬 End Y: {END_Y_POSITION} (off-screen top)")
+        print("📅 CREATIVE DAILY")
+        print(f"🎬 Start Y: {START_Y_POSITION} (controls visible PNG portion at t=0)")
         print(f"🎬 Thumbnail capture at t={THUMBNAIL_CAPTURE_TIME} second")
         print("🎬 Thumbnail: Visible PNG portion only, yellow removed, stretched to fill")
         print("="*60)
@@ -592,8 +581,7 @@ class CompleteCalendarExtractor:
             image_path=result['image_path'],
             slide_duration=slide_duration,
             audio_file=audio_file,
-            start_y=START_Y_POSITION,
-            end_y=END_Y_POSITION
+            start_y=START_Y_POSITION
         )
         
         if video_path is None:
@@ -613,7 +601,7 @@ class CompleteCalendarExtractor:
 
 if __name__ == "__main__":
     print("="*60)
-    print("🎬 CREATIVE DAILY SCRIPT - FULL SLIDE VERSION")
+    print("🎬 CREATIVE DAILY SCRIPT")
     print("="*60)
     
     PDF_PATH = "your_document.pdf"
@@ -637,8 +625,7 @@ if __name__ == "__main__":
         target_date = datetime.now().strftime("%Y-%m-%d")
     
     print(f"🎯 Target: {target_date}")
-    print(f"🎬 Duration: {VIDEO_DURATION} seconds")
-    print(f"🎬 Animation: Full slide from bottom to top")
+    print(f"🎬 Start Y: {START_Y_POSITION}")
     print(f"🎬 Thumbnail capture at t={THUMBNAIL_CAPTURE_TIME} second")
     
     if not os.path.exists(PDF_PATH):
@@ -655,4 +642,4 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         print(f"❌ FAILED")
-        sys.exit(1)
+        sys.exit(1)--this code is perfect l just want animation to be 25 sec and from t0 whole image slide into view so user reads content
