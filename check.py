@@ -910,7 +910,7 @@ if __name__ == "__main__":
 
     target_date = None
     post_to_youtube = True
-    slide_duration = 18
+    slide_duration = random.randint(16, 22)
     audio_file = None
 
     # Parse command line arguments
