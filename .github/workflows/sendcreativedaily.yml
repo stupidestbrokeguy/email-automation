@@ -3,9 +3,9 @@
 on:
   schedule:
     - cron: '0 6 * * *'
-  workflow_dispatch:
-  push:
-    branches: [ main, master ]
+  # workflow_dispatch:
+  # push:
+  #   branches: [ main, master ]
 
 jobs:
   send-creativedaily:
@@ -61,7 +61,7 @@ jobs:
         TODAY=2026-06-09
         echo "📅 Processing date: $TODAY"
         # TODAY=$(date +'%Y-%m-%d')
-        python check.py 2026-06-13
+        python check.py
     
     - name: Upload video as artifact
       uses: actions/upload-artifact@v4
