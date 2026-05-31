@@ -1,28 +1,14 @@
-name: Creative Daily YouTube Upload
+name: Daily Creative Daily YouTube Upload
 
 on:
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
-    inputs:
-      target_date:
-        description: 'Target date (YYYY-MM-DD) - leave empty for today'
-        required: false
-        type: string
-        default: ''
-      no_youtube:
-        description: 'Skip YouTube upload'
-        required: false
-        type: boolean
-        default: false
-      duration:
-        description: 'Video duration in seconds'
-        required: false
-        type: number
-        default: 18
+  push:
+    branches: [ main, master ]
 
 jobs:
-  process-and-upload:
+  send-creativedaily:
     runs-on: ubuntu-latest
     
     permissions:
@@ -52,59 +38,33 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y ffmpeg
     
-    - name: Decode client_secrets.json
+    - name: Create client_secrets.json from secret
       run: |
-        if [ -z "${{ secrets.CLIENT_SECRETS_JSON }}" ]; then
-          echo "⚠️ No CLIENT_SECRETS_JSON secret found"
-        else
-          echo "${{ secrets.CLIENT_SECRETS_JSON }}" | base64 -d > client_secrets.json
-          echo "✅ client_secrets.json created"
-        fi
+        echo '${{ secrets.CLIENT_SECRETS_JSON }}' > client_secrets.json
+        echo "✅ client_secrets.json created"
     
-    - name: Decode token.pickle
+    - name: Decode token from secret
       run: |
-        if [ -n "${{ secrets.YOUTUBE_TOKEN }}" ]; then
-          echo "${{ secrets.YOUTUBE_TOKEN }}" | base64 -d > token.pickle
-          echo "✅ token.pickle restored"
-        fi
+        echo "${{ secrets.YOUTUBE_TOKEN }}" | base64 -d > token.pickle
+        echo "✅ token.pickle restored"
     
-    - name: Setup PDF
+    - name: Verify PDF exists
       run: |
-        if [ -f "your_document.pdf" ]; then
-          echo "✅ Found PDF: your_document.pdf"
-          ls -la your_document.pdf
-        else
-          echo "❌ your_document.pdf not found!"
+        if [ ! -f your_document.pdf ]; then
+          echo "❌ PDF file not found!"
           exit 1
         fi
+        echo "✅ PDF file found ($(du -h your_document.pdf | cut -f1))"
     
-    - name: Run Creative Daily
+    - name: Run Creative Daily script
       run: |
-        if [ -n "${{ github.event.inputs.target_date }}" ] && [ "${{ github.event.inputs.target_date }}" != "" ]; then
-          TARGET_DATE="${{ github.event.inputs.target_date }}"
-        else
-          TARGET_DATE=$(date +%Y-%m-%d)
-        fi
-        
-        CMD="python check.py $TARGET_DATE"
-        
-        if [ "${{ github.event.inputs.no_youtube }}" = "true" ]; then
-          CMD="$CMD --no-youtube"
-        fi
-        
-        if [ -n "${{ github.event.inputs.duration }}" ] && [ "${{ github.event.inputs.duration }}" != "" ]; then
-          CMD="$CMD --duration=${{ github.event.inputs.duration }}"
-        fi
-        
-        echo "🚀 Running: $CMD"
-        $CMD
-      env:
-        PYTHONUNBUFFERED: 1
+        TODAY=$(date +'%Y-%m-%d')
+        echo "📅 Processing date: $TODAY"
+        python check.py 2026-06-21
     
-    - name: Upload artifacts
-      if: always()
+    - name: Upload video as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: creative-daily-outputs
-        path: extracted_date_pages/
+        name: creative-daily-video
+        path: extracted_date_pages/*.mp4
         retention-days: 30
