@@ -1,0 +1,111 @@
+name: Daily Affirmation - 30 Second Clip
+
+on:
+  schedule:
+    # Run at 7:00 AM Dubai time (UTC+4) = 3:00 UTC
+    - cron: '3 3 * * *'
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: 'Target date (YYYY-MM-DD)'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  send-affirmation:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      actions: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+        lfs: true
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install PyMuPDF moviepy google-api-python-client google-auth-oauthlib google-auth-httplib2 pillow numpy
+    
+    - name: Install FFmpeg
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+    
+    - name: Install ImageMagick (for text overlays)
+      run: |
+        sudo apt-get install -y imagemagick
+        # Fix ImageMagick policy for text rendering
+        sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml || true
+    
+    - name: Create client_secrets.json from secret
+      run: |
+        echo '${{ secrets.CLIENT_SECRETS_JSON }}' > client_secrets.json
+        echo "✅ client_secrets.json created"
+    
+    - name: Decode token from secret
+      run: |
+        echo "${{ secrets.YOUTUBE_TOKEN }}" | base64 -d > token.pickle
+        echo "✅ token.pickle restored"
+    
+    - name: Download background music (optional)
+      run: |
+        # You can add a background music file to your repo
+        # or download from a URL
+        if [ ! -f background_music.mp3 ]; then
+          echo "⚠️ No background_music.mp3 found - video will be silent"
+        fi
+    
+    - name: Verify PDF exists
+      run: |
+        if [ ! -f your_document.pdf ]; then
+          echo "❌ PDF file not found!"
+          exit 1
+        fi
+        echo "✅ PDF file found ($(du -h your_document.pdf | cut -f1))"
+    
+    - name: Set target date
+      id: date
+      run: |
+        if [ -n "${{ github.event.inputs.target_date }}" ]; then
+          echo "date=${{ github.event.inputs.target_date }}" >> $GITHUB_OUTPUT
+          echo "📅 Using manual date: ${{ github.event.inputs.target_date }}"
+        else
+          # Use current date
+          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+          echo "📅 Using today's date: $(date +'%Y-%m-%d')"
+        fi
+    
+    - name: Run Affirmation script
+      run: |
+        python affirmation_extractor.py ${{ steps.date.outputs.date }}
+    
+    - name: Upload video as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: affirmation-30s-video
+        path: affirmation_pages/*_affirmation_30s.mp4
+        retention-days: 30
+    
+    - name: Upload affirmation text as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: affirmation-text
+        path: affirmation_pages/*.txt
+        retention-days: 30
+    
+    - name: Log completion
+      run: |
+        echo "✅ Daily affirmation processing complete!"
+        echo "📹 Check YouTube channel for the 30-second affirmation clip"
