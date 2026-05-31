@@ -111,6 +111,16 @@ def create_affirmation_image(affirmation_text: str, target_date: str, output_pat
     print(f"\n🎨 Creating creative affirmation image with logo...")
     print(f"   📅 Date: {target_date}")
     print(f"   💬 Text: {affirmation_text[:80]}...")
+    print(f"   🖼️ Logo path: {logo_path}")
+    print(f"   📁 Current directory: {os.getcwd()}")
+    
+    # Check if logo exists
+    logo_exists = os.path.exists(logo_path)
+    print(f"   📁 Logo file exists: {logo_exists}")
+    
+    if logo_exists:
+        logo_size = os.path.getsize(logo_path)
+        print(f"   📏 Logo file size: {logo_size} bytes")
     
     try:
         from PIL import Image, ImageDraw, ImageFont
@@ -118,12 +128,14 @@ def create_affirmation_image(affirmation_text: str, target_date: str, output_pat
         
         # Image dimensions (16:9 ratio for YouTube)
         width, height = 1920, 1080
+        print(f"   📐 Image dimensions: {width}x{height}")
         
         # Create gradient background (yellow to orange)
         img = Image.new('RGB', (width, height), color=(255, 215, 0))
         draw = ImageDraw.Draw(img)
         
         # Add gradient effect (vertical gradient from light yellow to warm orange)
+        print(f"   🎨 Creating gradient background...")
         for y in range(height):
             factor = y / height
             r = int(255 - factor * 0)
@@ -138,6 +150,7 @@ def create_affirmation_image(affirmation_text: str, target_date: str, output_pat
             font_affirmation = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 50)
             font_affirmation_bold = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 52)
             font_small = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 35)
+            print(f"   ✅ Loaded Liberation fonts")
         except:
             try:
                 font_title_bold = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 85)
@@ -145,53 +158,83 @@ def create_affirmation_image(affirmation_text: str, target_date: str, output_pat
                 font_affirmation = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 50)
                 font_affirmation_bold = ImageFont.truetype("/System/Library/Fonts/Helvetica-Bold.ttf", 52)
                 font_small = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 35)
+                print(f"   ✅ Loaded Helvetica fonts")
             except:
                 font_title_bold = ImageFont.load_default()
                 font_title_light = ImageFont.load_default()
                 font_affirmation = ImageFont.load_default()
                 font_affirmation_bold = ImageFont.load_default()
                 font_small = ImageFont.load_default()
+                print(f"   ⚠️ Using default fonts")
         
         # Format date
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         formatted_date = date_obj.strftime("%B %d, %Y")
+        print(f"   📅 Formatted date: {formatted_date}")
         
-        # Load and place logo in top-right corner
+        # Load and place logo in top-right corner with detailed debugging
         logo_placed = False
+        
         if logo_path and os.path.exists(logo_path):
             try:
+                print(f"   🖼️ Attempting to load logo: {logo_path}")
                 logo = Image.open(logo_path)
+                print(f"   📐 Original logo size: {logo.width}x{logo.height}")
+                print(f"   🎨 Logo mode: {logo.mode}")
+                
+                # Resize logo to fit nicely (max 120px height)
                 logo_max_height = 120
                 logo_ratio = logo.width / logo.height
+                print(f"   📐 Logo aspect ratio: {logo_ratio:.2f}")
+                
                 if logo.height > logo_max_height:
                     new_height = logo_max_height
                     new_width = int(logo_ratio * new_height)
+                    print(f"   🔄 Resizing logo from {logo.width}x{logo.height} to {new_width}x{new_height}")
                     logo = logo.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    print(f"   ✅ Logo resized successfully")
+                else:
+                    print(f"   ✅ Logo already fits (height {logo.height} <= {logo_max_height})")
                 
+                # Position: top-right with margin
                 logo_margin = 40
                 logo_x = width - logo.width - logo_margin
                 logo_y = logo_margin
+                print(f"   📍 Logo position: x={logo_x}, y={logo_y}")
+                print(f"   📍 Logo will occupy area: ({logo_x}, {logo_y}) to ({logo_x + logo.width}, {logo_y + logo.height})")
                 
+                # Paste logo (handle transparency)
                 if logo.mode == 'RGBA':
+                    print(f"   🎨 Logo has transparency (RGBA), pasting with alpha mask")
                     img.paste(logo, (logo_x, logo_y), logo)
                 else:
+                    print(f"   🎨 Logo has no transparency (RGB), pasting directly")
                     img.paste(logo, (logo_x, logo_y))
                 
                 logo_placed = True
-                print(f"   🖼️ Logo placed at top-right corner")
+                print(f"   ✅ LOGO PLACED SUCCESSFULLY at top-right corner!")
                 
                 # Draw a subtle glow behind logo
                 glow_size = 20
                 draw.ellipse(
                     [(logo_x - glow_size, logo_y - glow_size),
                      (logo_x + logo.width + glow_size, logo_y + logo.height + glow_size)],
-                    fill=(255, 200, 100, 50),
+                    fill=(255, 200, 100),
                     outline=None
                 )
+                print(f"   ✨ Added glow effect behind logo")
+                
             except Exception as e:
-                print(f"   ⚠️ Could not place logo: {e}")
+                print(f"   ❌ Could not place logo: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print(f"   ⚠️ Logo file not found at: {logo_path}")
+            print(f"   📁 Looking for logo in: {os.path.abspath(logo_path)}")
+            print(f"   📁 Files in current directory: {os.listdir('.')}")
         
         if not logo_placed:
+            print(f"   🎨 Creating fallback logo (orange circle with 'SO')")
             # Draw decorative orange circle as fallback logo
             circle_x = width - 100
             circle_y = 80
@@ -202,6 +245,7 @@ def create_affirmation_image(affirmation_text: str, target_date: str, output_pat
                 fill=(255, 100, 0)
             )
             draw.text((circle_x - 25, circle_y - 20), "SO", fill=(255, 255, 255), font=font_title_bold)
+            print(f"   ✅ Fallback logo placed at ({circle_x}, {circle_y})")
         
         # Draw decorative top bar (thin orange line)
         draw.line([(0, 0), (width, 0)], fill=(255, 100, 0), width=8)
@@ -257,6 +301,7 @@ def create_affirmation_image(affirmation_text: str, target_date: str, output_pat
         
         # Wrap and draw affirmation text (ONLY the affirmation, no extra content)
         wrapped_text = textwrap.wrap(affirmation_text, width=45)
+        print(f"   📝 Wrapped affirmation into {len(wrapped_text)} lines")
         
         # Calculate text position (centered vertically)
         line_height = 70
@@ -277,7 +322,7 @@ def create_affirmation_image(affirmation_text: str, target_date: str, output_pat
                 [(line_x - bg_padding, line_y - 15),
                  (line_x + line_width + bg_padding, line_y + bg_height - 20)],
                 radius=20,
-                fill=(0, 0, 0, 100),
+                fill=(0, 0, 0),
                 outline=(255, 200, 100),
                 width=1
             )
@@ -302,7 +347,7 @@ def create_affirmation_image(affirmation_text: str, target_date: str, output_pat
             [((width - web_width) // 2 - web_bg_padding, bottom_y - 15),
              ((width - web_width) // 2 + web_width + web_bg_padding, bottom_y + 35)],
             radius=25,
-            fill=(255, 140, 0, 80),
+            fill=(255, 140, 0),
             outline=(255, 200, 100),
             width=1
         )
@@ -315,11 +360,12 @@ def create_affirmation_image(affirmation_text: str, target_date: str, output_pat
             (width - 200, 300), (200, height - 250)
         ]
         for sx, sy in sparkle_positions:
-            draw.text((sx, sy), "✦", fill=(255, 200, 0, 100), font=font_small)
+            draw.text((sx, sy), "✦", fill=(255, 200, 0), font=font_small)
         
         # Save image with high quality
         img.save(output_path, quality=95, dpi=(300, 300))
-        print(f"   ✅ Creative affirmation image saved: {output_path} ({os.path.getsize(output_path)} bytes)")
+        print(f"   ✅ Creative affirmation image saved: {output_path}")
+        print(f"   📏 File size: {os.path.getsize(output_path)} bytes")
         
         return output_path
         
@@ -463,6 +509,9 @@ class AffirmationExtractor:
         ]
         os.makedirs(output_dir, exist_ok=True)
         self.playlist_id = None
+        print(f"🔧 AffirmationExtractor initialized")
+        print(f"   📁 PDF path: {pdf_path}")
+        print(f"   📁 Output dir: {output_dir}")
 
     def extract_date_from_text(self, text: str) -> str:
         for pattern in self.date_patterns:
@@ -484,6 +533,7 @@ class AffirmationExtractor:
         print(f"📄 Searching PDF for {target_date}...")
         
         if not os.path.exists(self.pdf_path):
+            print(f"   ❌ PDF not found: {self.pdf_path}")
             return None
 
         doc = fitz.open(self.pdf_path)
@@ -495,10 +545,13 @@ class AffirmationExtractor:
             f"{date_obj.day}-{date_obj.strftime('%B')}-{date_obj.year}",
         ]
         
+        print(f"   🔍 Looking for date formats: {date_formats}")
+        
         for page_num in range(len(doc)):
             text = doc[page_num].get_text()
             for date_format in date_formats:
                 if date_format in text:
+                    print(f"   ✅ Found on page {page_num + 1}")
                     doc.close()
                     return {
                         'page_num': page_num,
@@ -508,6 +561,7 @@ class AffirmationExtractor:
                     }
         
         doc.close()
+        print(f"   ❌ Date {target_date} not found in PDF")
         return None
 
     def get_affirmation_from_page(self, page_info: dict) -> str:
@@ -519,6 +573,7 @@ class AffirmationExtractor:
         
         for playlist in playlists.get('items', []):
             if playlist['snippet']['title'] == PLAYLIST_TITLE:
+                print(f"   ✅ Found existing playlist: {playlist['id']}")
                 return playlist['id']
 
         response = youtube.playlists().insert(
@@ -528,6 +583,7 @@ class AffirmationExtractor:
                 'status': {'privacyStatus': 'public'}
             }
         ).execute()
+        print(f"   ✅ Created new playlist: {response['id']}")
         return response['id']
 
     def upload_to_youtube(self, video_path: str, target_date: str, affirmation_text: str) -> dict:
@@ -568,9 +624,11 @@ class AffirmationExtractor:
             if os.path.exists(TOKEN_FILE):
                 with open(TOKEN_FILE, 'rb') as f:
                     credentials = pickle.load(f)
+                print(f"   ✅ Loaded credentials from {TOKEN_FILE}")
 
             if not credentials or not credentials.valid:
                 if credentials and credentials.expired and credentials.refresh_token:
+                    print(f"   🔄 Refreshing expired token...")
                     credentials.refresh(Request())
                 else:
                     if not os.path.exists(CLIENT_SECRETS_FILE):
@@ -579,11 +637,14 @@ class AffirmationExtractor:
                     free_port = find_free_port()
                     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
                     credentials = flow.run_local_server(port=free_port, open_browser=True)
+                    print(f"   ✅ Authentication successful")
                 
                 with open(TOKEN_FILE, 'wb') as f:
                     pickle.dump(credentials, f)
+                print(f"   💾 Saved credentials to {TOKEN_FILE}")
 
             youtube = build('youtube', 'v3', credentials=credentials)
+            print(f"   ✅ YouTube service built")
 
             if self.playlist_id is None:
                 self.playlist_id = self.create_or_get_playlist(youtube)
@@ -604,6 +665,7 @@ class AffirmationExtractor:
             request = youtube.videos().insert(part=','.join(body.keys()), body=body, media_body=media)
             response = request.execute()
             video_url = f"https://youtu.be/{response['id']}"
+            print(f"   ✅ Video uploaded! ID: {response['id']}")
 
             if thumbnail_path and os.path.exists(thumbnail_path):
                 try:
@@ -612,6 +674,7 @@ class AffirmationExtractor:
                         media_body=MediaFileUpload(thumbnail_path)
                     ).execute()
                     os.remove(thumbnail_path)
+                    print(f"   ✅ Thumbnail uploaded!")
                 except Exception as e:
                     print(f"   ⚠️ Thumbnail upload failed: {e}")
 
@@ -624,10 +687,12 @@ class AffirmationExtractor:
                     }
                 }
             ).execute()
+            print(f"   ✅ Added to playlist: {PLAYLIST_TITLE}")
 
             return {'status': 'success', 'video_url': video_url}
 
         except Exception as e:
+            print(f"   ❌ Upload failed: {e}")
             return {'status': 'failed', 'error': str(e)}
 
     def process_date(self, target_date: str, post_to_youtube: bool = True,
@@ -636,6 +701,9 @@ class AffirmationExtractor:
         print("✨ CREATIVE DAILY - AFFIRMATION EXTRACTOR (30 sec)")
         print("="*60)
         print(f"📅 Target Date: {target_date}")
+        print(f"📹 YouTube Upload: {'ON' if post_to_youtube else 'OFF'}")
+        print(f"🎵 Audio File: {audio_file if audio_file else 'Auto-detect'}")
+        print("="*60)
 
         page_info = self.find_page_for_date(target_date)
         if not page_info:
@@ -648,7 +716,8 @@ class AffirmationExtractor:
             return {'status': 'no_affirmation', 'date': target_date}
 
         print(f"\n📝 Affirmation extracted (no quotes, no extra content):")
-        print(f"   {affirmation[:150]}...")
+        print(f"   {affirmation[:200]}...")
+        print(f"   Total length: {len(affirmation)} characters")
 
         # Create custom affirmation image with logo
         image_path = create_affirmation_image(
@@ -687,7 +756,11 @@ class AffirmationExtractor:
 
 if __name__ == "__main__":
     print("="*60)
-    print("✨ AFFIRMATION EXTRACTOR - CUSTOM IMAGE (NO QUOTES, NO EXTRA CONTENT)")
+    print("✨ AFFIRMATION EXTRACTOR - CUSTOM IMAGE WITH LOGO DEBUGGING")
+    print("="*60)
+    print(f"🐍 Python version: {sys.version}")
+    print(f"📁 Current working directory: {os.getcwd()}")
+    print(f"📁 Files in directory: {os.listdir('.')}")
     print("="*60)
 
     PDF_PATH = "your_document.pdf"
@@ -713,7 +786,11 @@ if __name__ == "__main__":
 
     if not os.path.exists(PDF_PATH):
         print(f"❌ PDF not found: {PDF_PATH}")
+        print(f"💡 Make sure '{PDF_PATH}' exists in the current directory")
         sys.exit(1)
+    else:
+        pdf_size = os.path.getsize(PDF_PATH) / (1024 * 1024)
+        print(f"✅ PDF found: {PDF_PATH} ({pdf_size:.1f} MB)")
 
     processor = AffirmationExtractor(PDF_PATH, OUTPUT_DIR)
     result = processor.process_date(target_date, post_to_youtube, audio_file)
@@ -727,11 +804,22 @@ if __name__ == "__main__":
         print(f"   📅 Date: {result['date']}")
         print(f"   💬 Affirmation: {result['affirmation'][:150]}...")
         print(f"   🖼️ Image: {result.get('image_path', 'N/A')}")
+        
+        if os.path.exists(result.get('image_path', '')):
+            img_size = os.path.getsize(result['image_path']) / 1024
+            print(f"   📏 Image size: {img_size:.1f} KB")
+        
         print(f"   🎬 Video: {result.get('video_path', 'N/A')}")
+        
+        if result.get('video_path') and os.path.exists(result['video_path']):
+            video_size = os.path.getsize(result['video_path']) / (1024 * 1024)
+            print(f"   📏 Video size: {video_size:.1f} MB")
         
         if result.get('youtube') and result['youtube']['status'] == 'success':
             print(f"\n📹 POSTED TO YOUTUBE!")
             print(f"   🔗 URL: {result['youtube']['video_url']}")
+        elif result.get('youtube') and result['youtube']['status'] == 'failed':
+            print(f"\n❌ YouTube upload failed: {result['youtube'].get('error', 'Unknown')}")
         
         sys.exit(0)
     else:
