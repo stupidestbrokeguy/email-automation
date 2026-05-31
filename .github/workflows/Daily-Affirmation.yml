@@ -2,7 +2,6 @@ name: Daily Affirmation - 30 Second Clip
 
 on:
   schedule:
-    # Run at 7:00 AM Dubai time (UTC+4) = 3:00 UTC
     - cron: '3 3 * * *'
   workflow_dispatch:
     inputs:
@@ -46,8 +45,8 @@ jobs:
     - name: Install ImageMagick (for text overlays)
       run: |
         sudo apt-get install -y imagemagick
-        # Fix ImageMagick policy for text rendering
         sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml || true
+        sudo sed -i 's/rights="none" pattern="PS"/rights="read|write" pattern="PS"/' /etc/ImageMagick-6/policy.xml || true
     
     - name: Create client_secrets.json from secret
       run: |
@@ -59,12 +58,6 @@ jobs:
         echo "${{ secrets.YOUTUBE_TOKEN }}" | base64 -d > token.pickle
         echo "✅ token.pickle restored"
     
-    - name: Download background music (optional)
-      run: |
-        if [ ! -f background_music.mp3 ]; then
-          echo "⚠️ No background_music.mp3 found - video will be silent"
-        fi
-    
     - name: Verify PDF exists
       run: |
         if [ ! -f your_document.pdf ]; then
@@ -73,38 +66,44 @@ jobs:
         fi
         echo "✅ PDF file found ($(du -h your_document.pdf | cut -f1))"
     
-    - name: Set target date to June 7, 2026
+    - name: Set target date
       id: date
       run: |
-        # Force date to June 7, 2026
-        TARGET_DATE="2026-06-07"
-        echo "date=${TARGET_DATE}" >> $GITHUB_OUTPUT
-        echo "📅 Using fixed date: ${TARGET_DATE}"
-        echo "📅 This corresponds to: June 7, 2026 (Page from PDF)"
+        if [ -n "${{ github.event.inputs.target_date }}" ] && [ "${{ github.event.inputs.target_date }}" != "" ]; then
+          echo "date=${{ github.event.inputs.target_date }}" >> $GITHUB_OUTPUT
+          echo "📅 Using manual date: ${{ github.event.inputs.target_date }}"
+        else
+          echo "date=2026-06-07" >> $GITHUB_OUTPUT
+          echo "📅 Using default date: 2026-06-07"
+        fi
     
     - name: Run Affirmation script
       run: |
         echo "🎬 Processing date: ${{ steps.date.outputs.date }}"
-        echo "📄 Looking for June 7, 2026 in PDF..."
         python affirmation_extractor.py ${{ steps.date.outputs.date }}
     
-    - name: Upload video as artifact
+    - name: Upload video artifact
       uses: actions/upload-artifact@v4
       with:
-        name: affirmation-30s-video-june7
-        path: affirmation_pages/*_affirmation_30s.mp4
+        name: affirmation-video-${{ steps.date.outputs.date }}
+        path: affirmation_pages/*_video.mp4
         retention-days: 30
       if: always()
     
-    - name: Upload affirmation text as artifact
+    - name: Upload image artifact
       uses: actions/upload-artifact@v4
       with:
-        name: affirmation-text-june7
-        path: affirmation_pages/*.txt
+        name: affirmation-image-${{ steps.date.outputs.date }}
+        path: affirmation_pages/*.png
         retention-days: 30
       if: always()
     
     - name: Log completion
       run: |
-        echo "✅ June 7, 2026 Affirmation processing complete!"
+        echo "✅ Daily affirmation processing complete!"
         echo "📹 Check YouTube channel for the 30-second affirmation clip"
+        
+        # List created files
+        echo ""
+        echo "📁 Created files:"
+        ls -la affirmation_pages/ || echo "No files found"
