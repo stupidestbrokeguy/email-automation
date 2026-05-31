@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Creative Daily - Affirmation Focused
-Creates custom affirmation PNG and 30-second video
+Extracts ONLY the affirmation (stops at Related Saying)
+Creates custom affirmation image with logo and 30-second video
 """
 
 import os
@@ -27,13 +28,18 @@ def find_free_port(start_port=8080, end_port=8090):
     return 8080
 
 def extract_affirmation_from_text(page_text: str) -> str:
-    """Extract the affirmation text from a page - NO QUOTES"""
+    """
+    Extract ONLY the affirmation text from a page.
+    Stops at 'Related Saying', 'creativelydaily', or any other section.
+    Does NOT include anything after the affirmation.
+    """
     print(f"   🔍 Looking for affirmation in {len(page_text)} chars...")
     
+    # Method 1: Look for pattern with clear end markers
     patterns = [
-        r'(?:Affirmation:?\s*)([^A-Z]+?)(?=(?:creativelydaily|Related Saying|$))',
-        r'(?:Affirmation:?\s*)(.+?)(?=(?:creativelydaily|Related Saying|$))',
-        r'(?:Affirmation:?\s*\n)((?:.+\n)+?)(?=\n*(?:creativelydaily|Related Saying|\n\n|$))',
+        r'(?:Affirmation:?\s*)([^A-Z]+?)(?=\n\s*(?:Related Saying|creativelydaily|-\s*[A-Z]|$))',
+        r'(?:Affirmation:?\s*)(.+?)(?=\n\s*(?:Related Saying|creativelydaily|-\s*[A-Z]|$))',
+        r'(?:Affirmation:?\s*\n)((?:[^\n]+\n)+?)(?=\n*(?:Related Saying|creativelydaily|\n\n))',
     ]
     
     for pattern in patterns:
@@ -41,50 +47,68 @@ def extract_affirmation_from_text(page_text: str) -> str:
         if match:
             affirmation = match.group(1).strip()
             affirmation = re.sub(r'\s+', ' ', affirmation)
-            # Remove any quotes that might be in the text
-            affirmation = affirmation.strip('"\'')
             affirmation = affirmation.replace('creativelydaily.stupidorange.com', '')
+            affirmation = affirmation.replace('Related Saying', '')
+            affirmation = affirmation.strip('"\'')
             affirmation = affirmation.strip()
+            
             if len(affirmation) > 20:
                 print(f"   ✅ Found affirmation ({len(affirmation)} chars)")
                 return affirmation
     
-    # Fallback line-by-line search
+    # Method 2: Line-by-line extraction with clear stop at "Related Saying"
     lines = page_text.split('\n')
     affirmation_lines = []
     capture = False
     
     for line in lines:
         line_stripped = line.strip()
+        
         if 'affirmation' in line_stripped.lower():
             capture = True
             parts = re.split(r'Affirmation:?\s*', line_stripped, flags=re.IGNORECASE)
             if len(parts) > 1 and parts[1]:
-                affirmation_lines.append(parts[1].strip('"\''))
+                clean_part = parts[1].split('Related Saying')[0].split('creativelydaily')[0].strip()
+                if clean_part:
+                    affirmation_lines.append(clean_part)
             continue
         
         if capture:
-            if line_stripped and not line_stripped.startswith('http') and 'creativelydaily' not in line_stripped.lower():
-                if 'Related Saying' in line_stripped or 'creativelydaily' in line_stripped.lower():
-                    break
-                affirmation_lines.append(line_stripped)
+            if ('Related Saying' in line_stripped or 
+                'creativelydaily' in line_stripped.lower() or
+                line_stripped.startswith('-') or
+                (line_stripped == '' and len(affirmation_lines) > 0)):
+                break
+            
+            if line_stripped:
+                clean_line = line_stripped.split('Related Saying')[0].split('creativelydaily')[0].strip()
+                if clean_line:
+                    affirmation_lines.append(clean_line)
     
     if affirmation_lines:
         result = ' '.join(affirmation_lines).strip()
+        result = result.split('Related Saying')[0].split('creativelydaily')[0].strip()
         result = result.strip('"\'')
-        print(f"   ✅ Found affirmation via fallback ({len(result)} chars)")
+        print(f"   ✅ Found affirmation via line-by-line ({len(result)} chars)")
         return result
     
-    print(f"   ⚠️ No affirmation found")
+    # Method 3: Look for text between "Affirmation:" and the next period that ends a sentence
+    affirmation_match = re.search(r'Affirmation:?\s*([^.!?]+[.!?])', page_text, re.IGNORECASE)
+    if affirmation_match:
+        affirmation = affirmation_match.group(1).strip()
+        print(f"   ✅ Found affirmation via sentence boundary ({len(affirmation)} chars)")
+        return affirmation
+    
+    print(f"   ⚠️ No affirmation found in text")
     return None
 
-def create_affirmation_image(affirmation_text: str, target_date: str, output_path: str = None) -> str:
-    """Create a custom PNG image with title and affirmation text (no quotes)"""
+def create_affirmation_image(affirmation_text: str, target_date: str, output_path: str = None, logo_path: str = "stupidorange_logo.png") -> str:
+    """Create a custom PNG image with title, affirmation text, and logo - Creative Design"""
     
     if output_path is None:
         output_path = f"affirmation_{target_date}.png"
     
-    print(f"\n🎨 Creating custom affirmation image...")
+    print(f"\n🎨 Creating creative affirmation image with logo...")
     print(f"   📅 Date: {target_date}")
     print(f"   💬 Text: {affirmation_text[:80]}...")
     
@@ -92,91 +116,210 @@ def create_affirmation_image(affirmation_text: str, target_date: str, output_pat
         from PIL import Image, ImageDraw, ImageFont
         import textwrap
         
-        # Image dimensions (1080x1080 for square, or 1920x1080 for wide)
+        # Image dimensions (16:9 ratio for YouTube)
         width, height = 1920, 1080
         
-        # Create yellow background (same as video)
+        # Create gradient background (yellow to orange)
         img = Image.new('RGB', (width, height), color=(255, 215, 0))
         draw = ImageDraw.Draw(img)
         
-        # Try to load fonts, fall back to default
+        # Add gradient effect (vertical gradient from light yellow to warm orange)
+        for y in range(height):
+            factor = y / height
+            r = int(255 - factor * 0)
+            g = int(245 - factor * 105)
+            b = int(200 - factor * 200)
+            draw.line([(0, y), (width, y)], fill=(r, g, b))
+        
+        # Load fonts with fallbacks
         try:
-            # Try to find a bold font
-            font_title = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 72)
-            font_affirmation = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 48)
+            font_title_bold = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 85)
+            font_title_light = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 55)
+            font_affirmation = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 50)
+            font_affirmation_bold = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 52)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 35)
         except:
             try:
-                font_title = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 72)
-                font_affirmation = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 48)
+                font_title_bold = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 85)
+                font_title_light = ImageFont.truetype("/System/Library/Fonts/Helvetica-Light.ttf", 55)
+                font_affirmation = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 50)
+                font_affirmation_bold = ImageFont.truetype("/System/Library/Fonts/Helvetica-Bold.ttf", 52)
+                font_small = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 35)
             except:
-                # Default font
-                font_title = ImageFont.load_default()
+                font_title_bold = ImageFont.load_default()
+                font_title_light = ImageFont.load_default()
                 font_affirmation = ImageFont.load_default()
+                font_affirmation_bold = ImageFont.load_default()
+                font_small = ImageFont.load_default()
         
         # Format date
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         formatted_date = date_obj.strftime("%B %d, %Y")
         
-        # Draw title
-        title = f"✨ CREATIVE DAILY AFFIRMATION ✨"
-        subtitle = formatted_date
+        # Load and place logo in top-right corner
+        logo_placed = False
+        if logo_path and os.path.exists(logo_path):
+            try:
+                logo = Image.open(logo_path)
+                logo_max_height = 120
+                logo_ratio = logo.width / logo.height
+                if logo.height > logo_max_height:
+                    new_height = logo_max_height
+                    new_width = int(logo_ratio * new_height)
+                    logo = logo.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                
+                logo_margin = 40
+                logo_x = width - logo.width - logo_margin
+                logo_y = logo_margin
+                
+                if logo.mode == 'RGBA':
+                    img.paste(logo, (logo_x, logo_y), logo)
+                else:
+                    img.paste(logo, (logo_x, logo_y))
+                
+                logo_placed = True
+                print(f"   🖼️ Logo placed at top-right corner")
+                
+                # Draw a subtle glow behind logo
+                glow_size = 20
+                draw.ellipse(
+                    [(logo_x - glow_size, logo_y - glow_size),
+                     (logo_x + logo.width + glow_size, logo_y + logo.height + glow_size)],
+                    fill=(255, 200, 100, 50),
+                    outline=None
+                )
+            except Exception as e:
+                print(f"   ⚠️ Could not place logo: {e}")
         
-        # Get title size and position
-        title_bbox = draw.textbbox((0, 0), title, font=font_title)
+        if not logo_placed:
+            # Draw decorative orange circle as fallback logo
+            circle_x = width - 100
+            circle_y = 80
+            circle_radius = 50
+            draw.ellipse(
+                [(circle_x - circle_radius, circle_y - circle_radius),
+                 (circle_x + circle_radius, circle_y + circle_radius)],
+                fill=(255, 100, 0)
+            )
+            draw.text((circle_x - 25, circle_y - 20), "SO", fill=(255, 255, 255), font=font_title_bold)
+        
+        # Draw decorative top bar (thin orange line)
+        draw.line([(0, 0), (width, 0)], fill=(255, 100, 0), width=8)
+        
+        # Draw title with glow effect
+        title = "✨ CREATIVE DAILY AFFIRMATION ✨"
+        title_bbox = draw.textbbox((0, 0), title, font=font_title_bold)
         title_width = title_bbox[2] - title_bbox[0]
         title_x = (width - title_width) // 2
-        title_y = 80
+        title_y = 100
         
-        # Draw title with outline for better visibility
-        draw.text((title_x, title_y), title, fill=(0, 0, 0), font=font_title)
+        # Title shadow/glow
+        for offset in range(3):
+            draw.text((title_x + offset, title_y + offset), title, fill=(255, 180, 50), font=font_title_bold)
+        draw.text((title_x, title_y), title, fill=(255, 255, 255), font=font_title_bold)
         
-        # Draw subtitle
-        sub_bbox = draw.textbbox((0, 0), subtitle, font=font_affirmation)
+        # Draw decorative stars around title
+        star_positions = [(-60, 20), (title_width + 60, 20), (-80, 60), (title_width + 80, 60)]
+        for star_x, star_y in star_positions:
+            draw.text((title_x + star_x, title_y + star_y), "⭐", fill=(255, 200, 0), font=font_title_light)
+        
+        # Draw date with creative styling
+        subtitle = formatted_date
+        sub_bbox = draw.textbbox((0, 0), subtitle, font=font_title_light)
         sub_width = sub_bbox[2] - sub_bbox[0]
         sub_x = (width - sub_width) // 2
-        sub_y = title_y + 80
-        draw.text((sub_x, sub_y), subtitle, fill=(100, 80, 0), font=font_affirmation)
+        sub_y = title_y + 110
         
-        # Draw divider line
-        line_y = sub_y + 50
-        draw.line([(200, line_y), (width - 200, line_y)], fill=(0, 0, 0), width=3)
+        # Date background pill
+        pill_padding = 30
+        pill_height = 70
+        draw.rounded_rectangle(
+            [(sub_x - pill_padding, sub_y - 15),
+             (sub_x + sub_width + pill_padding, sub_y + pill_height - 20)],
+            radius=35,
+            fill=(255, 140, 0),
+            outline=(255, 200, 100),
+            width=2
+        )
+        draw.text((sub_x, sub_y), subtitle, fill=(255, 255, 255), font=font_title_light)
         
-        # Wrap and draw affirmation text (NO QUOTES)
-        wrapped_text = textwrap.wrap(affirmation_text, width=50)
+        # Draw decorative divider with diamond
+        divider_y = sub_y + 80
+        draw.line([(300, divider_y), (width//2 - 60, divider_y)], fill=(255, 140, 0), width=3)
+        draw.line([(width//2 + 60, divider_y), (width - 300, divider_y)], fill=(255, 140, 0), width=3)
+        diamond_points = [
+            (width//2, divider_y - 12),
+            (width//2 + 12, divider_y),
+            (width//2, divider_y + 12),
+            (width//2 - 12, divider_y)
+        ]
+        draw.polygon(diamond_points, fill=(255, 100, 0))
+        
+        # Wrap and draw affirmation text (ONLY the affirmation, no extra content)
+        wrapped_text = textwrap.wrap(affirmation_text, width=45)
         
         # Calculate text position (centered vertically)
-        line_height = 60
+        line_height = 70
         total_text_height = len(wrapped_text) * line_height
         text_start_y = (height - total_text_height) // 2 + 50
         
+        # Draw each line with background for readability
         for i, line in enumerate(wrapped_text):
-            line_bbox = draw.textbbox((0, 0), line, font=font_affirmation)
+            line_bbox = draw.textbbox((0, 0), line, font=font_affirmation_bold)
             line_width = line_bbox[2] - line_bbox[0]
             line_x = (width - line_width) // 2
             line_y = text_start_y + (i * line_height)
-            draw.text((line_x, line_y), line, fill=(0, 0, 0), font=font_affirmation)
+            
+            # Semi-transparent background for text readability
+            bg_padding = 40
+            bg_height = 65
+            draw.rounded_rectangle(
+                [(line_x - bg_padding, line_y - 15),
+                 (line_x + line_width + bg_padding, line_y + bg_height - 20)],
+                radius=20,
+                fill=(0, 0, 0, 100),
+                outline=(255, 200, 100),
+                width=1
+            )
+            draw.text((line_x, line_y), line, fill=(255, 255, 255), font=font_affirmation_bold)
         
-        # Draw decorative elements
-        # Small orange circle logo (Stupid Orange)
-        circle_center_x = width - 80
-        circle_center_y = height - 80
-        circle_radius = 40
-        draw.ellipse(
-            [(circle_center_x - circle_radius, circle_center_y - circle_radius),
-             (circle_center_x + circle_radius, circle_center_y + circle_radius)],
-            fill=(255, 140, 0)
-        )
-        draw.text((circle_center_x - 15, circle_center_y - 15), "SO", fill=(255, 255, 255), font=font_affirmation)
+        # Draw decorative bottom section with website link
+        bottom_y = height - 100
         
-        # Draw website at bottom
+        # Decorative wave pattern
+        for x in range(0, width, 40):
+            wave_y = bottom_y - 20 + (x % 80) / 80 * 4
+            draw.point([(x, wave_y)], fill=(255, 140, 0))
+        
+        # Draw website URL (always included after every affirmation)
         website = "creativelydaily.stupidorange.com"
-        web_bbox = draw.textbbox((0, 0), website, font=font_affirmation)
+        web_bbox = draw.textbbox((0, 0), website, font=font_small)
         web_width = web_bbox[2] - web_bbox[0]
-        draw.text(((width - web_width) // 2, height - 50), website, fill=(100, 80, 0), font=font_affirmation)
         
-        # Save image
-        img.save(output_path, quality=95)
-        print(f"   ✅ Image saved: {output_path} ({os.path.getsize(output_path)} bytes)")
+        # Website background pill
+        web_bg_padding = 25
+        draw.rounded_rectangle(
+            [((width - web_width) // 2 - web_bg_padding, bottom_y - 15),
+             ((width - web_width) // 2 + web_width + web_bg_padding, bottom_y + 35)],
+            radius=25,
+            fill=(255, 140, 0, 80),
+            outline=(255, 200, 100),
+            width=1
+        )
+        draw.text(((width - web_width) // 2, bottom_y), website, fill=(255, 255, 255), font=font_small)
+        
+        # Draw small decorative sparkles
+        sparkle_positions = [
+            (100, 200), (width - 100, 200),
+            (150, height - 150), (width - 150, height - 150),
+            (width - 200, 300), (200, height - 250)
+        ]
+        for sx, sy in sparkle_positions:
+            draw.text((sx, sy), "✦", fill=(255, 200, 0, 100), font=font_small)
+        
+        # Save image with high quality
+        img.save(output_path, quality=95, dpi=(300, 300))
+        print(f"   ✅ Creative affirmation image saved: {output_path} ({os.path.getsize(output_path)} bytes)")
         
         return output_path
         
@@ -204,8 +347,6 @@ def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_
         clip.close()
         
         img = Image.fromarray(frame.astype('uint8'), 'RGB')
-        
-        # Resize to thumbnail dimensions
         img = img.resize((THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT), Image.Resampling.LANCZOS)
         img.save(output_path, quality=90)
         
@@ -248,7 +389,6 @@ def create_affirmation_video(image_path: str, affirmation_text: str, target_date
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
         
-        # If image is not already 1920x1080, resize to fit
         if img_width != screen_width or img_height != screen_height:
             pil_img = pil_img.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
             temp_img_path = image_path.replace('.png', '_resized.png')
@@ -256,13 +396,8 @@ def create_affirmation_video(image_path: str, affirmation_text: str, target_date
         else:
             temp_img_path = image_path
         
-        # Create image clip (no sliding animation since image fills screen)
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
-        
-        # Create yellow background (just in case)
         background = ColorClip(size=(screen_width, screen_height), color=bg_color, duration=slide_duration)
-        
-        # Composite (image on top of background)
         final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
         
         # Handle audio
@@ -296,7 +431,6 @@ def create_affirmation_video(image_path: str, affirmation_text: str, target_date
                     except:
                         continue
         
-        # Write video
         final_clip.write_videofile(
             output_path,
             codec='libx264',
@@ -318,7 +452,6 @@ def create_affirmation_video(image_path: str, affirmation_text: str, target_date
         import traceback
         traceback.print_exc()
         return None
-
 
 class AffirmationExtractor:
     def __init__(self, pdf_path: str, output_dir: str = "affirmation_pages"):
@@ -356,7 +489,6 @@ class AffirmationExtractor:
         doc = fitz.open(self.pdf_path)
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         
-        # Try different date formats
         date_formats = [
             f"{date_obj.day} {date_obj.strftime('%B')} {date_obj.year}",
             f"{date_obj.strftime('%B')} {date_obj.day}, {date_obj.year}",
@@ -379,7 +511,7 @@ class AffirmationExtractor:
         return None
 
     def get_affirmation_from_page(self, page_info: dict) -> str:
-        """Extract affirmation from page text"""
+        """Extract ONLY affirmation from page text"""
         return extract_affirmation_from_text(page_info['text'])
 
     def create_or_get_playlist(self, youtube) -> str:
@@ -456,7 +588,6 @@ class AffirmationExtractor:
             if self.playlist_id is None:
                 self.playlist_id = self.create_or_get_playlist(youtube)
 
-            # Extract thumbnail
             thumbnail_path = extract_thumbnail_from_video(video_path, time_seconds=0.0)
             
             body = {
@@ -506,29 +637,30 @@ class AffirmationExtractor:
         print("="*60)
         print(f"📅 Target Date: {target_date}")
 
-        # Find page with the date
         page_info = self.find_page_for_date(target_date)
         if not page_info:
             return {'status': 'not_found', 'date': target_date}
 
         print(f"✅ Found on page {page_info['display_num']}")
 
-        # Extract affirmation
         affirmation = self.get_affirmation_from_page(page_info)
         if not affirmation:
             return {'status': 'no_affirmation', 'date': target_date}
 
-        print(f"\n📝 Affirmation extracted (no quotes):")
+        print(f"\n📝 Affirmation extracted (no quotes, no extra content):")
         print(f"   {affirmation[:150]}...")
 
-        # Create custom affirmation image (NOT the PDF page)
-        image_path = create_affirmation_image(affirmation, target_date, 
-                                               os.path.join(self.output_dir, f"affirmation_{target_date}.png"))
+        # Create custom affirmation image with logo
+        image_path = create_affirmation_image(
+            affirmation, 
+            target_date, 
+            os.path.join(self.output_dir, f"affirmation_{target_date}.png"),
+            logo_path="stupidorange_logo.png"
+        )
 
         if not image_path:
             return {'status': 'image_failed', 'date': target_date}
 
-        # Create 30-second video
         video_path = create_affirmation_video(
             image_path=image_path,
             affirmation_text=affirmation,
@@ -553,10 +685,9 @@ class AffirmationExtractor:
             'youtube': youtube_result
         }
 
-
 if __name__ == "__main__":
     print("="*60)
-    print("✨ AFFIRMATION EXTRACTOR - CUSTOM IMAGE (NO QUOTES)")
+    print("✨ AFFIRMATION EXTRACTOR - CUSTOM IMAGE (NO QUOTES, NO EXTRA CONTENT)")
     print("="*60)
 
     PDF_PATH = "your_document.pdf"
@@ -575,7 +706,7 @@ if __name__ == "__main__":
             target_date = arg
 
     if target_date is None:
-        target_date = "2026-06-07"  # Default to June 7
+        target_date = "2026-06-07"
 
     print(f"📅 Target Date: {target_date}")
     print(f"📹 YouTube Upload: {'ON' if post_to_youtube else 'OFF'}")
