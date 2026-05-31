@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
 """
 Creative Daily - Affirmation Focused
-Extracts from PDF, creates 30-second affirmation video with sliding animation
-Features:
-- Extracts "Affirmation:" content from each page
-- Creates 30-second clip (shorter than standard 18s)
-- Yellow background with 60% zoom for readable text
-- Auto thumbnail from top 25% of PNG at T=0
-- YouTube upload with custom title "Affirmation of the Day"
+Creates custom affirmation PNG and 30-second video
 """
 
 import os
@@ -20,13 +14,9 @@ import fitz  # PyMuPDF
 
 # ========== CONFIGURATION ==========
 PLAYLIST_TITLE = "Creative Daily Affirmations | Stupid Orange"
-PLAYLIST_DESCRIPTION = """Welcome to the Official Affirmation Playlist of the Creative Daily from Stupid Orange. Daily affirmations to help you start collecting royalties from your creativity and live a true royal lifestyle.
-
-#Dubai #creativedaily #stupidestbrokeguy #UAE #affirmation #dailyaffirmation"""
-# ===================================
+PLAYLIST_DESCRIPTION = """Daily affirmations from Creative Daily to help you start collecting royalties from your creativity."""
 
 def find_free_port(start_port=8080, end_port=8090):
-    """Find a free port for OAuth callback"""
     for port in range(start_port, end_port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
@@ -37,15 +27,9 @@ def find_free_port(start_port=8080, end_port=8090):
     return 8080
 
 def extract_affirmation_from_text(page_text: str) -> str:
-    """
-    Extract the affirmation text from a page.
-    Looks for 'Affirmation:' pattern and captures everything until the next 
-    section (like 'creativelydaily.stupidorange.com' or 'Related Saying')
-    """
-    print(f"   🔍 DEBUG: extract_affirmation_from_text called with {len(page_text)} chars")
+    """Extract the affirmation text from a page - NO QUOTES"""
+    print(f"   🔍 Looking for affirmation in {len(page_text)} chars...")
     
-    # Pattern to find Affirmation section
-    # Looks for "Affirmation:" or "Affirmation" at start of line, case insensitive
     patterns = [
         r'(?:Affirmation:?\s*)([^A-Z]+?)(?=(?:creativelydaily|Related Saying|$))',
         r'(?:Affirmation:?\s*)(.+?)(?=(?:creativelydaily|Related Saying|$))',
@@ -56,15 +40,16 @@ def extract_affirmation_from_text(page_text: str) -> str:
         match = re.search(pattern, page_text, re.IGNORECASE | re.DOTALL)
         if match:
             affirmation = match.group(1).strip()
-            # Clean up the affirmation text
-            affirmation = re.sub(r'\s+', ' ', affirmation)  # Normalize whitespace
+            affirmation = re.sub(r'\s+', ' ', affirmation)
+            # Remove any quotes that might be in the text
+            affirmation = affirmation.strip('"\'')
             affirmation = affirmation.replace('creativelydaily.stupidorange.com', '')
             affirmation = affirmation.strip()
-            if len(affirmation) > 20:  # Valid affirmation should be substantial
-                print(f"   ✅ DEBUG: Found affirmation ({len(affirmation)} chars): {affirmation[:80]}...")
+            if len(affirmation) > 20:
+                print(f"   ✅ Found affirmation ({len(affirmation)} chars)")
                 return affirmation
     
-    # Fallback: Look for any paragraph after "Affirmation" keyword
+    # Fallback line-by-line search
     lines = page_text.split('\n')
     affirmation_lines = []
     capture = False
@@ -73,10 +58,9 @@ def extract_affirmation_from_text(page_text: str) -> str:
         line_stripped = line.strip()
         if 'affirmation' in line_stripped.lower():
             capture = True
-            # If the affirmation is on the same line, extract it
             parts = re.split(r'Affirmation:?\s*', line_stripped, flags=re.IGNORECASE)
             if len(parts) > 1 and parts[1]:
-                affirmation_lines.append(parts[1])
+                affirmation_lines.append(parts[1].strip('"\''))
             continue
         
         if capture:
@@ -87,127 +71,171 @@ def extract_affirmation_from_text(page_text: str) -> str:
     
     if affirmation_lines:
         result = ' '.join(affirmation_lines).strip()
-        print(f"   ✅ DEBUG: Found affirmation via fallback ({len(result)} chars)")
+        result = result.strip('"\'')
+        print(f"   ✅ Found affirmation via fallback ({len(result)} chars)")
         return result
     
-    print(f"   ⚠️ DEBUG: No affirmation found in text")
+    print(f"   ⚠️ No affirmation found")
     return None
 
-def detect_page_title(page_text: str) -> str:
-    """Detect title from page structure"""
-    lines = page_text.split('\n')
-    clean_lines = []
-    for line in lines:
-        line = line.strip()
-        if line and not line.isdigit() and not re.search(r'Page\s+\d+', line):
-            clean_lines.append(line)
+def create_affirmation_image(affirmation_text: str, target_date: str, output_path: str = None) -> str:
+    """Create a custom PNG image with title and affirmation text (no quotes)"""
     
-    found_creative_daily = False
-    for i, line in enumerate(clean_lines):
-        if found_creative_daily and line and len(line) > 2 and not line.startswith('#'):
-            return f"Affirmation: {line[:50]}..."
-        if "Creative Daily" in line or "creative daily" in line.lower():
-            found_creative_daily = True
+    if output_path is None:
+        output_path = f"affirmation_{target_date}.png"
     
-    # If no title, use date-based title
-    return "Daily Affirmation"
+    print(f"\n🎨 Creating custom affirmation image...")
+    print(f"   📅 Date: {target_date}")
+    print(f"   💬 Text: {affirmation_text[:80]}...")
+    
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import textwrap
+        
+        # Image dimensions (1080x1080 for square, or 1920x1080 for wide)
+        width, height = 1920, 1080
+        
+        # Create yellow background (same as video)
+        img = Image.new('RGB', (width, height), color=(255, 215, 0))
+        draw = ImageDraw.Draw(img)
+        
+        # Try to load fonts, fall back to default
+        try:
+            # Try to find a bold font
+            font_title = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 72)
+            font_affirmation = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 48)
+        except:
+            try:
+                font_title = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 72)
+                font_affirmation = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 48)
+            except:
+                # Default font
+                font_title = ImageFont.load_default()
+                font_affirmation = ImageFont.load_default()
+        
+        # Format date
+        date_obj = datetime.strptime(target_date, "%Y-%m-%d")
+        formatted_date = date_obj.strftime("%B %d, %Y")
+        
+        # Draw title
+        title = f"✨ CREATIVE DAILY AFFIRMATION ✨"
+        subtitle = formatted_date
+        
+        # Get title size and position
+        title_bbox = draw.textbbox((0, 0), title, font=font_title)
+        title_width = title_bbox[2] - title_bbox[0]
+        title_x = (width - title_width) // 2
+        title_y = 80
+        
+        # Draw title with outline for better visibility
+        draw.text((title_x, title_y), title, fill=(0, 0, 0), font=font_title)
+        
+        # Draw subtitle
+        sub_bbox = draw.textbbox((0, 0), subtitle, font=font_affirmation)
+        sub_width = sub_bbox[2] - sub_bbox[0]
+        sub_x = (width - sub_width) // 2
+        sub_y = title_y + 80
+        draw.text((sub_x, sub_y), subtitle, fill=(100, 80, 0), font=font_affirmation)
+        
+        # Draw divider line
+        line_y = sub_y + 50
+        draw.line([(200, line_y), (width - 200, line_y)], fill=(0, 0, 0), width=3)
+        
+        # Wrap and draw affirmation text (NO QUOTES)
+        wrapped_text = textwrap.wrap(affirmation_text, width=50)
+        
+        # Calculate text position (centered vertically)
+        line_height = 60
+        total_text_height = len(wrapped_text) * line_height
+        text_start_y = (height - total_text_height) // 2 + 50
+        
+        for i, line in enumerate(wrapped_text):
+            line_bbox = draw.textbbox((0, 0), line, font=font_affirmation)
+            line_width = line_bbox[2] - line_bbox[0]
+            line_x = (width - line_width) // 2
+            line_y = text_start_y + (i * line_height)
+            draw.text((line_x, line_y), line, fill=(0, 0, 0), font=font_affirmation)
+        
+        # Draw decorative elements
+        # Small orange circle logo (Stupid Orange)
+        circle_center_x = width - 80
+        circle_center_y = height - 80
+        circle_radius = 40
+        draw.ellipse(
+            [(circle_center_x - circle_radius, circle_center_y - circle_radius),
+             (circle_center_x + circle_radius, circle_center_y + circle_radius)],
+            fill=(255, 140, 0)
+        )
+        draw.text((circle_center_x - 15, circle_center_y - 15), "SO", fill=(255, 255, 255), font=font_affirmation)
+        
+        # Draw website at bottom
+        website = "creativelydaily.stupidorange.com"
+        web_bbox = draw.textbbox((0, 0), website, font=font_affirmation)
+        web_width = web_bbox[2] - web_bbox[0]
+        draw.text(((width - web_width) // 2, height - 50), website, fill=(100, 80, 0), font=font_affirmation)
+        
+        # Save image
+        img.save(output_path, quality=95)
+        print(f"   ✅ Image saved: {output_path} ({os.path.getsize(output_path)} bytes)")
+        
+        return output_path
+        
+    except Exception as e:
+        print(f"   ❌ Image creation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 def extract_thumbnail_from_video(video_path: str, output_path: str = None, time_seconds: float = 0.0) -> str:
-    """
-    Extract thumbnail from video - capturing the TOP 25% of the image visible at T=0
-    """
-    print(f"\n🎬 DEBUG: extract_thumbnail_from_video START (Top 25% cropping mode)")
+    """Extract thumbnail from video - first frame"""
+    print(f"\n🎬 Extracting thumbnail...")
     
     if output_path is None:
         output_path = video_path.replace('.mp4', '_thumbnail.png')
     
-    THUMBNAIL_WIDTH = 1280
-    THUMBNAIL_HEIGHT = 720
+    THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT = 1280, 720
     
     try:
         from moviepy import VideoFileClip
         from PIL import Image
-        import numpy as np
         
         clip = VideoFileClip(video_path)
         frame = clip.get_frame(time_seconds)
         clip.close()
         
         img = Image.fromarray(frame.astype('uint8'), 'RGB')
-        img_array = np.array(img)
         
-        yellow_lower = np.array([240, 200, 0])
-        yellow_upper = np.array([255, 230, 50])
-        is_not_yellow = np.any((img_array < yellow_lower) | (img_array > yellow_upper), axis=2)
-        non_yellow_coords = np.argwhere(is_not_yellow)
-        
-        if len(non_yellow_coords) > 0:
-            y_min = non_yellow_coords[:, 0].min()
-            y_max = non_yellow_coords[:, 0].max()
-            x_min = non_yellow_coords[:, 1].min()
-            x_max = non_yellow_coords[:, 1].max()
-            
-            png_height = y_max - y_min
-            top_visible_height = int(png_height * 0.25)
-            crop_y_max = y_min + top_visible_height
-            
-            cropped_img = img.crop((x_min, y_min, x_max, crop_y_max))
-            
-            target_ratio = THUMBNAIL_WIDTH / THUMBNAIL_HEIGHT
-            cropped_ratio = cropped_img.width / cropped_img.height
-            
-            if cropped_ratio > target_ratio:
-                new_height = THUMBNAIL_HEIGHT
-                new_width = int(cropped_img.width * (THUMBNAIL_HEIGHT / cropped_img.height))
-                resized_img = cropped_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                left = (new_width - THUMBNAIL_WIDTH) // 2
-                right = left + THUMBNAIL_WIDTH
-                final_img = resized_img.crop((left, 0, right, THUMBNAIL_HEIGHT))
-            else:
-                new_width = THUMBNAIL_WIDTH
-                new_height = int(cropped_img.height * (THUMBNAIL_WIDTH / cropped_img.width))
-                resized_img = cropped_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                top = (new_height - THUMBNAIL_HEIGHT) // 2
-                bottom = top + THUMBNAIL_HEIGHT
-                final_img = resized_img.crop((0, top, THUMBNAIL_WIDTH, bottom))
-            
-            final_img.save(output_path, quality=90)
-        else:
-            height = img.height
-            crop_height = int(height * 0.25)
-            cropped_img = img.crop((0, 0, img.width, crop_height))
-            final_img = cropped_img.resize((THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT), Image.Resampling.LANCZOS)
-            final_img.save(output_path, quality=90)
+        # Resize to thumbnail dimensions
+        img = img.resize((THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT), Image.Resampling.LANCZOS)
+        img.save(output_path, quality=90)
         
         print(f"   ✅ Thumbnail saved: {output_path}")
+        return output_path
         
     except Exception as e:
         print(f"   ❌ Thumbnail extraction failed: {e}")
         return None
-    
-    return output_path
 
-def create_affirmation_video(image_path: str, affirmation_text: str,
+def create_affirmation_video(image_path: str, affirmation_text: str, target_date: str,
                               output_path: str = None,
                               bg_color: tuple = (255, 215, 0),
                               slide_duration: int = 30,
                               audio_file: str = None) -> str:
-    """Create 30-second video with affirmation text overlay"""
+    """Create 30-second video with custom affirmation image"""
     
     if output_path is None:
-        output_path = image_path.replace('.png', '_affirmation_30s.mp4')
+        output_path = image_path.replace('.png', '_video.mp4')
     
-    print(f"\n🎬 DEBUG: create_affirmation_video START (30 sec)")
-    print(f"   📷 Image path: {image_path}")
-    print(f"   💬 Affirmation: {affirmation_text[:100]}...")
+    print(f"\n🎬 Creating 30-second affirmation video...")
+    print(f"   📷 Image: {image_path}")
     print(f"   ⏱️  Duration: {slide_duration} seconds")
     
     try:
-        from moviepy import ImageClip, CompositeVideoClip, ColorClip, TextClip
+        from moviepy import ImageClip, CompositeVideoClip, ColorClip
         from moviepy.audio.io.AudioFileClip import AudioFileClip
     except ImportError:
         try:
-            from moviepy.editor import ImageClip, CompositeVideoClip, ColorClip, TextClip, AudioFileClip
+            from moviepy.editor import ImageClip, CompositeVideoClip, ColorClip, AudioFileClip
         except ImportError as e:
             print(f"   ❌ moviepy import failed: {e}")
             return None
@@ -216,94 +244,26 @@ def create_affirmation_video(image_path: str, affirmation_text: str,
     
     try:
         from PIL import Image
-        import numpy as np
         
         pil_img = Image.open(image_path)
         img_width, img_height = pil_img.size
         
-        # 60% ZOOM for larger text
-        fit_scale = min(screen_width / img_width, screen_height / img_height)
-        zoom_factor = 1.6
-        scale = fit_scale * zoom_factor
+        # If image is not already 1920x1080, resize to fit
+        if img_width != screen_width or img_height != screen_height:
+            pil_img = pil_img.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
+            temp_img_path = image_path.replace('.png', '_resized.png')
+            pil_img.save(temp_img_path)
+        else:
+            temp_img_path = image_path
         
-        new_width = int(img_width * scale)
-        new_height = int(img_height * scale)
-        
-        try:
-            pil_img_resized = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        except AttributeError:
-            pil_img_resized = pil_img.resize((new_width, new_height))
-        
-        temp_img_path = image_path.replace('.png', '_temp_resized.png')
-        pil_img_resized.save(temp_img_path)
-        
-        # Create image clip with sliding animation
+        # Create image clip (no sliding animation since image fills screen)
         image_clip = ImageClip(temp_img_path, duration=slide_duration)
         
-        # Calculate animation positions (slower slide for 30 seconds)
-        start_y_original = screen_height
-        end_y_original = -new_height + screen_height * 0.2
-        progress_at_5s = 5.0 / slide_duration
-        eased_at_5s = progress_at_5s * progress_at_5s * (3 - 2 * progress_at_5s)
-        y_at_5s = start_y_original + (end_y_original - start_y_original) * eased_at_5s
-        
-        new_start_y = y_at_5s
-        new_end_y = end_y_original
-        
-        def image_slide_position(t):
-            progress = min(1.0, t / slide_duration)
-            eased = progress * progress * (3 - 2 * progress)
-            y = new_start_y + (new_end_y - new_start_y) * eased
-            return ('center', y)
-        
-        image_clip = image_clip.with_position(image_slide_position)
-        
-        # Create yellow background
+        # Create yellow background (just in case)
         background = ColorClip(size=(screen_width, screen_height), color=bg_color, duration=slide_duration)
         
-        # Create affirmation text overlay (bottom of screen)
-        # Wrap text for better display
-        wrapped_text = affirmation_text
-        if len(affirmation_text) > 80:
-            # Simple word wrapping
-            words = affirmation_text.split()
-            lines = []
-            current_line = []
-            current_len = 0
-            for word in words:
-                if current_len + len(word) + 1 <= 60:
-                    current_line.append(word)
-                    current_len += len(word) + 1
-                else:
-                    lines.append(' '.join(current_line))
-                    current_line = [word]
-                    current_len = len(word)
-            if current_line:
-                lines.append(' '.join(current_line))
-            wrapped_text = '\n'.join(lines)
-        
-        # Create text clip at bottom with semi-transparent background
-        try:
-            text_clip = TextClip(
-                text=wrapped_text,
-                font_size=48,
-                color='white',
-                font='Arial',
-                stroke_color='black',
-                stroke_width=2,
-                method='caption',
-                size=(screen_width - 100, None)
-            ).with_position(('center', screen_height - 150)).with_duration(slide_duration)
-            
-            # Add semi-transparent background for text readability
-            text_bg = ColorClip(size=(screen_width, 120), color=(0, 0, 0), duration=slide_duration)
-            text_bg = text_bg.with_opacity(0.6).with_position(('center', screen_height - 180))
-            
-            final_clip = CompositeVideoClip([background, image_clip, text_bg, text_clip], 
-                                            size=(screen_width, screen_height))
-        except Exception as e:
-            print(f"   ⚠️ Text overlay failed: {e}, creating video without text overlay")
-            final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
+        # Composite (image on top of background)
+        final_clip = CompositeVideoClip([background, image_clip], size=(screen_width, screen_height))
         
         # Handle audio
         audio_added = False
@@ -322,7 +282,6 @@ def create_affirmation_video(image_path: str, affirmation_text: str,
                 print(f"   ⚠️ Audio error: {e}")
         
         if not audio_added:
-            # Try to find background music
             for audio in ["background_music.mp3", "audio.mp3", "music.mp3", "bgm.mp3"]:
                 if os.path.exists(audio):
                     try:
@@ -348,7 +307,7 @@ def create_affirmation_video(image_path: str, affirmation_text: str,
         )
         
         final_clip.close()
-        if os.path.exists(temp_img_path):
+        if temp_img_path != image_path and os.path.exists(temp_img_path):
             os.remove(temp_img_path)
         
         print(f"   ✅ Video created: {output_path}")
@@ -371,7 +330,6 @@ class AffirmationExtractor:
         ]
         os.makedirs(output_dir, exist_ok=True)
         self.playlist_id = None
-        print(f"🔧 AffirmationExtractor initialized")
 
     def extract_date_from_text(self, text: str) -> str:
         for pattern in self.date_patterns:
@@ -388,77 +346,41 @@ class AffirmationExtractor:
                         continue
         return None
 
-    def find_all_date_pages(self) -> dict:
-        print(f"📄 Scanning PDF for dated pages...")
+    def find_page_for_date(self, target_date: str) -> dict:
+        """Find the page containing the target date"""
+        print(f"📄 Searching PDF for {target_date}...")
+        
         if not os.path.exists(self.pdf_path):
-            return {}
+            return None
 
         doc = fitz.open(self.pdf_path)
-        date_page_map = {}
-
+        date_obj = datetime.strptime(target_date, "%Y-%m-%d")
+        
+        # Try different date formats
+        date_formats = [
+            f"{date_obj.day} {date_obj.strftime('%B')} {date_obj.year}",
+            f"{date_obj.strftime('%B')} {date_obj.day}, {date_obj.year}",
+            f"{date_obj.day}-{date_obj.strftime('%B')}-{date_obj.year}",
+        ]
+        
         for page_num in range(len(doc)):
             text = doc[page_num].get_text()
-            date_str = self.extract_date_from_text(text)
-            if date_str:
-                if date_str not in date_page_map:
-                    date_page_map[date_str] = []
-                date_page_map[date_str].append({
-                    'page_num': page_num,
-                    'display_num': page_num + 1,
-                    'date': date_str,
-                    'text': text
-                })
-
-        doc.close()
-        print(f"   Found {len(date_page_map)} unique dates")
-        return date_page_map
-
-    def convert_page_to_image(self, page_info: dict, dpi: int = 150) -> str:
-        doc = fitz.open(self.pdf_path)
-        page = doc[page_info['page_num']]
-        zoom = dpi / 72
-        mat = fitz.Matrix(zoom, zoom)
-        pix = page.get_pixmap(matrix=mat, alpha=False)
-
-        date_obj = datetime.strptime(page_info['date'], "%Y-%m-%d")
-        filename = f"affirmation_{date_obj.day}_{date_obj.strftime('%B')}_{date_obj.year}.png"
-        image_path = os.path.join(self.output_dir, filename)
-
-        pix.save(image_path)
+            for date_format in date_formats:
+                if date_format in text:
+                    doc.close()
+                    return {
+                        'page_num': page_num,
+                        'display_num': page_num + 1,
+                        'date': target_date,
+                        'text': text
+                    }
         
-        # Save text content
-        text_file = image_path.replace('.png', '_text.txt')
-        with open(text_file, 'w', encoding='utf-8') as f:
-            f.write(page_info['text'])
-
         doc.close()
-        return image_path
-
-    def get_affirmation_from_page(self, image_path: str) -> str:
-        text_file = image_path.replace('.png', '_text.txt')
-        if os.path.exists(text_file):
-            with open(text_file, 'r', encoding='utf-8') as f:
-                page_text = f.read()
-                return extract_affirmation_from_text(page_text)
         return None
 
-    def ensure_image_for_date(self, target_date: str, dpi: int = 150) -> dict:
-        date_obj = datetime.strptime(target_date, "%Y-%m-%d")
-        pattern = f"affirmation_{date_obj.day}_{date_obj.strftime('%B')}_{date_obj.year}"
-
-        if os.path.exists(self.output_dir):
-            for file in os.listdir(self.output_dir):
-                if file.startswith(pattern) and file.endswith('.png'):
-                    return {'status': 'exists', 'image_path': os.path.join(self.output_dir, file)}
-
-        date_map = self.find_all_date_pages()
-        
-        if target_date in date_map:
-            page_info = date_map[target_date][0]
-            image_path = self.convert_page_to_image(page_info, dpi)
-            return {'status': 'extracted', 'image_path': image_path, 'page_num': page_info['display_num']}
-        else:
-            return {'status': 'not_found', 'image_path': None}
+    def get_affirmation_from_page(self, page_info: dict) -> str:
+        """Extract affirmation from page text"""
+        return extract_affirmation_from_text(page_info['text'])
 
     def create_or_get_playlist(self, youtube) -> str:
         playlists = youtube.playlists().list(part='snippet', mine=True, maxResults=50).execute()
@@ -482,27 +404,20 @@ class AffirmationExtractor:
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         formatted_date = date_obj.strftime("%B %d, %Y")
 
-        full_title = f"✨ Affirmation of the Day | {formatted_date} | Creative Daily | Stupid Orange ✨"
-        
-        # Clean affirmation for description
-        clean_affirmation = affirmation_text.replace('\n', ' ').strip()
+        full_title = f"Creative Daily Affirmation | {formatted_date} | Stupid Orange"
         
         video_description = f"""🌟 DAILY AFFIRMATION - {formatted_date} 🌟
 
-"{clean_affirmation}"
+{affirmation_text}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✨ Join the Creative Daily community and start collecting royalties from your creativity!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔗 Help someone collect their first royalty: www.stupidorange.com
-📘 Get the Creative Daily: creativedaily.stupidorange.com
+🔗 www.stupidorange.com
+📘 creativedaily.stupidorange.com
 
-Follow Us:
-• YouTube: @stupidestbrokeguy
-• TikTok: @stupidestbrokeguy
-
-#affirmation #dailyaffirmation #creativedaily #stupidestbrokeguy #UAE #Dubai #morningaffirmation #positivevibes
+#affirmation #dailyaffirmation #creativedaily #stupidestbrokeguy #UAE #Dubai
 """
         
         try:
@@ -548,7 +463,7 @@ Follow Us:
                 'snippet': {
                     'title': full_title[:100],
                     'description': video_description[:5000],
-                    'tags': ['affirmation', 'dailyaffirmation', 'creativedaily', 'stupidestbrokeguy', 'UAE', 'Dubai'],
+                    'tags': ['affirmation', 'dailyaffirmation', 'creativedaily', 'stupidestbrokeguy'],
                     'categoryId': '22'
                 },
                 'status': {'privacyStatus': 'public', 'selfDeclaredMadeForKids': False}
@@ -559,7 +474,6 @@ Follow Us:
             response = request.execute()
             video_url = f"https://youtu.be/{response['id']}"
 
-            # Upload thumbnail
             if thumbnail_path and os.path.exists(thumbnail_path):
                 try:
                     youtube.thumbnails().set(
@@ -570,7 +484,6 @@ Follow Us:
                 except Exception as e:
                     print(f"   ⚠️ Thumbnail upload failed: {e}")
 
-            # Add to playlist
             youtube.playlistItems().insert(
                 part='snippet',
                 body={
@@ -592,24 +505,34 @@ Follow Us:
         print("✨ CREATIVE DAILY - AFFIRMATION EXTRACTOR (30 sec)")
         print("="*60)
         print(f"📅 Target Date: {target_date}")
-        print("="*60)
 
-        # Get image
-        result = self.ensure_image_for_date(target_date)
-        if result['status'] == 'not_found':
+        # Find page with the date
+        page_info = self.find_page_for_date(target_date)
+        if not page_info:
             return {'status': 'not_found', 'date': target_date}
 
+        print(f"✅ Found on page {page_info['display_num']}")
+
         # Extract affirmation
-        affirmation = self.get_affirmation_from_page(result['image_path'])
+        affirmation = self.get_affirmation_from_page(page_info)
         if not affirmation:
             return {'status': 'no_affirmation', 'date': target_date}
 
-        print(f"\n✅ Affirmation found: {affirmation[:100]}...")
+        print(f"\n📝 Affirmation extracted (no quotes):")
+        print(f"   {affirmation[:150]}...")
+
+        # Create custom affirmation image (NOT the PDF page)
+        image_path = create_affirmation_image(affirmation, target_date, 
+                                               os.path.join(self.output_dir, f"affirmation_{target_date}.png"))
+
+        if not image_path:
+            return {'status': 'image_failed', 'date': target_date}
 
         # Create 30-second video
         video_path = create_affirmation_video(
-            image_path=result['image_path'],
+            image_path=image_path,
             affirmation_text=affirmation,
+            target_date=target_date,
             slide_duration=30,
             audio_file=audio_file
         )
@@ -625,6 +548,7 @@ Follow Us:
             'status': 'success',
             'date': target_date,
             'affirmation': affirmation,
+            'image_path': image_path,
             'video_path': video_path,
             'youtube': youtube_result
         }
@@ -632,7 +556,7 @@ Follow Us:
 
 if __name__ == "__main__":
     print("="*60)
-    print("✨ AFFIRMATION EXTRACTOR - 30 SECOND CLIPS")
+    print("✨ AFFIRMATION EXTRACTOR - CUSTOM IMAGE (NO QUOTES)")
     print("="*60)
 
     PDF_PATH = "your_document.pdf"
@@ -642,7 +566,6 @@ if __name__ == "__main__":
     post_to_youtube = True
     audio_file = None
 
-    # Parse arguments
     for arg in sys.argv[1:]:
         if arg == "--no-youtube":
             post_to_youtube = False
@@ -652,7 +575,7 @@ if __name__ == "__main__":
             target_date = arg
 
     if target_date is None:
-        target_date = datetime.now().strftime("%Y-%m-%d")
+        target_date = "2026-06-07"  # Default to June 7
 
     print(f"📅 Target Date: {target_date}")
     print(f"📹 YouTube Upload: {'ON' if post_to_youtube else 'OFF'}")
@@ -672,6 +595,7 @@ if __name__ == "__main__":
         print(f"✅ SUCCESS!")
         print(f"   📅 Date: {result['date']}")
         print(f"   💬 Affirmation: {result['affirmation'][:150]}...")
+        print(f"   🖼️ Image: {result.get('image_path', 'N/A')}")
         print(f"   🎬 Video: {result.get('video_path', 'N/A')}")
         
         if result.get('youtube') and result['youtube']['status'] == 'success':
