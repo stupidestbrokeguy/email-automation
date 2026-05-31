@@ -9,7 +9,7 @@ on:
       target_date:
         description: 'Target date (YYYY-MM-DD)'
         required: false
-        default: ''
+        default: '2026-06-01'
         type: string
 
 jobs:
@@ -61,8 +61,6 @@ jobs:
     
     - name: Download background music (optional)
       run: |
-        # You can add a background music file to your repo
-        # or download from a URL
         if [ ! -f background_music.mp3 ]; then
           echo "⚠️ No background_music.mp3 found - video will be silent"
         fi
@@ -75,22 +73,41 @@ jobs:
         fi
         echo "✅ PDF file found ($(du -h your_document.pdf | cut -f1))"
     
-    - name: Set target date
-      id: date
+    - name: Find available date in PDF
+      id: find_date
       run: |
-        if [ -n "${{ github.event.inputs.target_date }}" ]; then
-          echo "date=${{ github.event.inputs.target_date }}" >> $GITHUB_OUTPUT
-          echo "📅 Using manual date: ${{ github.event.inputs.target_date }}"
+        # If manual date provided and after May 31, use it
+        if [ -n "${{ github.event.inputs.target_date }}" ] && [ "${{ github.event.inputs.target_date }}" != "" ]; then
+          TARGET_DATE="${{ github.event.inputs.target_date }}"
+          echo "date=${TARGET_DATE}" >> $GITHUB_OUTPUT
+          echo "📅 Using manual date: ${TARGET_DATE}"
         else
-          # Use current date
-          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-          echo "📅 Using today's date: $(date +'%Y-%m-%d')"
+          # Get current date
+          CURRENT_DATE=$(date +'%Y-%m-%d')
+          CURRENT_MONTH=$(date +'%m')
+          CURRENT_DAY=$(date +'%d')
+          CURRENT_YEAR=$(date +'%Y')
+          
+          # If before June 1, 2026, start from June 1
+          if [[ "$CURRENT_DATE" < "2026-06-01" ]]; then
+            echo "📅 Current date ($CURRENT_DATE) is before PDF content starts"
+            echo "📅 Starting from June 1, 2026"
+            echo "date=2026-06-01" >> $GITHUB_OUTPUT
+          elif [[ "$CURRENT_DATE" > "2026-06-30" ]]; then
+            # If after June 30, loop back to June 1 or stop
+            echo "📅 Current date ($CURRENT_DATE) is after PDF content ends"
+            echo "📅 Starting from June 1, 2026"
+            echo "date=2026-06-01" >> $GITHUB_OUTPUT
+          else
+            echo "date=${CURRENT_DATE}" >> $GITHUB_OUTPUT
+            echo "📅 Using today's date: ${CURRENT_DATE}"
+          fi
         fi
     
     - name: Run Affirmation script
       run: |
-        python affirmation_extractor.py 2026-06-01
-        # python affirmation_extractor.py ${{ steps.date.outputs.date }}
+        echo "🎬 Processing date: ${{ steps.find_date.outputs.date }}"
+        python affirmation_extractor.py ${{ steps.find_date.outputs.date }}
     
     - name: Upload video as artifact
       uses: actions/upload-artifact@v4
@@ -98,6 +115,7 @@ jobs:
         name: affirmation-30s-video
         path: affirmation_pages/*_affirmation_30s.mp4
         retention-days: 30
+      if: always()
     
     - name: Upload affirmation text as artifact
       uses: actions/upload-artifact@v4
@@ -105,6 +123,7 @@ jobs:
         name: affirmation-text
         path: affirmation_pages/*.txt
         retention-days: 30
+      if: always()
     
     - name: Log completion
       run: |
