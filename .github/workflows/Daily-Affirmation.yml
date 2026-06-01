@@ -80,7 +80,7 @@ jobs:
     - name: Run Affirmation script
       run: |
         echo "🎬 Processing date: ${{ steps.date.outputs.date }}"
-        python affirmation_extractor.py ${{ steps.date.outputs.date }}
+        python affirmation_extractor.py $Today
     
     - name: Upload video artifact
       uses: actions/upload-artifact@v4
