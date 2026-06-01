@@ -5,11 +5,11 @@ on:
     - cron: '3 3 * * *'
   workflow_dispatch:
     inputs:
-      target_date:
-        description: 'Target date (YYYY-MM-DD)'
-        required: false
-        default: '2026-06-07'
-        type: string
+      # target_date:
+      #   description: 'Target date (YYYY-MM-DD)'
+      #   required: false
+      #   # default: '2026-06-07'
+      #   type: string
 
 jobs:
   send-affirmation:
