@@ -2,14 +2,8 @@ name: Daily Affirmation - 30 Second Clip
 
 on:
   schedule:
-    - cron: '3 3 * * *'
-  workflow_dispatch:
-    inputs:
-      # target_date:
-      #   description: 'Target date (YYYY-MM-DD)'
-      #   required: false
-      #   # default: '2026-06-07'
-      #   type: string
+    - cron: '3 3 * * *'  # Runs at 3:03 AM UTC (7:03 AM Dubai time)
+  workflow_dispatch:  # Manual trigger (uses current date when manually run)
 
 jobs:
   send-affirmation:
@@ -66,21 +60,25 @@ jobs:
         fi
         echo "✅ PDF file found ($(du -h your_document.pdf | cut -f1))"
     
-    - name: Set target date
+    - name: Set today's date
       id: date
       run: |
-        if [ -n "${{ github.event.inputs.target_date }}" ] && [ "${{ github.event.inputs.target_date }}" != "" ]; then
-          echo "date=${{ github.event.inputs.target_date }}" >> $GITHUB_OUTPUT
-          echo "📅 Using manual date: ${{ github.event.inputs.target_date }}"
+        # Use current UTC date for scheduled runs
+        # For manual runs, use the current date too (or allow override if needed)
+        if [ "${{ github.event_name }}" = "schedule" ]; then
+          TODAY=$(date +%Y-%m-%d)
+          echo "📅 Schedule run - Using today's date: $TODAY"
         else
-          echo "date=2026-06-07" >> $GITHUB_OUTPUT
-          echo "📅 Using default date: 2026-06-07"
+          # For manual runs, you can still override if you add the input back
+          TODAY=$(date +%Y-%m-%d)
+          echo "📅 Manual run - Using today's date: $TODAY"
         fi
+        echo "date=$TODAY" >> $GITHUB_OUTPUT
     
     - name: Run Affirmation script
       run: |
         echo "🎬 Processing date: ${{ steps.date.outputs.date }}"
-        python affirmation_extractor.py $Today
+        python affirmation_extractor.py "${{ steps.date.outputs.date }}"
     
     - name: Upload video artifact
       uses: actions/upload-artifact@v4
@@ -100,7 +98,7 @@ jobs:
     
     - name: Log completion
       run: |
-        echo "✅ Daily affirmation processing complete!"
+        echo "✅ Daily affirmation processing complete for ${{ steps.date.outputs.date }}!"
         echo "📹 Check YouTube channel for the 30-second affirmation clip"
         
         # List created files
