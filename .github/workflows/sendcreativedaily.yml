@@ -1,11 +1,9 @@
-# name: Daily Creative Daily YouTube Upload
+name: Daily Creative Daily YouTube Upload
 
 on:
   schedule:
-    - cron: '0 20 * * *'
-  # workflow_dispatch:
-  # push:
-  #   branches: [ main, master ]
+    - cron: '0 20 * * *'  # 20:00 UTC = 00:00 Dubai time (next day)
+  workflow_dispatch:  # Allow manual runs
 
 jobs:
   send-creativedaily:
@@ -56,16 +54,20 @@ jobs:
         fi
         echo "✅ PDF file found ($(du -h your_document.pdf | cut -f1))"
     
+    - name: Set today's date (Dubai time)
+      id: date
+      run: |
+        TODAY=$(TZ='Asia/Dubai' date +'%Y-%m-%d')
+        echo "📅 Processing date: $TODAY"
+        echo "date=$TODAY" >> $GITHUB_OUTPUT
+    
     - name: Run Creative Daily script
       run: |
-        TODAY=2026-06-09
-        echo "📅 Processing date: $TODAY"
-        # TODAY=$(date +'%Y-%m-%d')
-        python check.py
+        python check.py --date "${{ steps.date.outputs.date }}"
     
     - name: Upload video as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: creative-daily-video
+        name: creative-daily-video-${{ steps.date.outputs.date }}
         path: extracted_date_pages/*.mp4
         retention-days: 30
