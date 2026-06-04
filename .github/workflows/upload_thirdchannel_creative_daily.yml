@@ -41,7 +41,7 @@ jobs:
 
       - name: Create client_secrets.json
         env:
-          CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
+          CLIENT_SECRETS: ${{ secrets.CLIENT_SECRETS_JSON }}
         run: |
           echo "$CLIENT_SECRETS" > client_secrets.json
 
