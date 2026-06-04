@@ -31,10 +31,10 @@ INTROS_FILE = "intros_third.json"
 PROMPTS_FILE = "prompts_third.json"
 
 # YouTube playlist settings – change to your channel's name
-PLAYLIST_TITLE = "Creative Daily | Third Channel Name"
-PLAYLIST_DESCRIPTION = """Daily creative prompts for [your niche] using AI.
+PLAYLIST_TITLE = "Nothing to something videos | Creative Daily | Stupidest Broke Guy"
+PLAYLIST_DESCRIPTION = """Daily creative prompts for your project to go from nothing to fortune 500 using AI.#stupidorange #stupidestbrokeguy #AIprompts #Shorts
 
-#YourHashtag #AIprompts #Shorts"""
+#stupidorange #AIprompts #Shorts"""
 
 # Thumbnail settings
 THUMB_WIDTH, THUMB_HEIGHT = 1280, 720
@@ -343,7 +343,7 @@ def main():
         title = title[:97] + "..."
 
     prompts_list = "\n".join([f"{i+1}. {p}" for i, p in enumerate(prompts)])
-    description = f"""In this YouTube Short, we give you 3 copy‑paste ChatGPT prompts for [your niche].
+    description = f"""In this YouTube Short, we give you 3 copy‑paste ChatGPT prompts for project to align with fortune 500 produced with love by Stupidest Broke Guy.
 
 🔥 THE PROMPTS:
 
@@ -357,9 +357,9 @@ def main():
 
 Join the Creative Daily: creativedaily.stupidorange.com
 
-#ThirdChannel #AIprompts #Shorts
+#stupidorange #creativedaily #stupidestbrokeguy #dubai #UAE #creavive #ai #fortune500 #Fortune500 #AIprompts #Shorts
 """
-    tags = ["ThirdChannel", "AIprompts", "Shorts"]
+    tags = ["stupidorange", "AIprompts", "Shorts","Fortune500","UAE","dubai"]
 
     # Upload
     print("\n📤 Uploading to YouTube...")
