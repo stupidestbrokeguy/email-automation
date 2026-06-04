@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Create a YouTube Shorts video for your third channel.
-Uses separate JSON files, images folder, and state file.
+Create a YouTube Shorts video for third channel – fixed audio loop and prompt limit.
 """
 
 import os
@@ -12,34 +11,33 @@ import socket
 import subprocess
 import textwrap
 from datetime import datetime
-from moviepy import ImageClip, CompositeVideoClip, concatenate_videoclips, AudioFileClip
+from moviepy import ImageClip, CompositeVideoClip, concatenate_videoclips, AudioFileClip, concatenate_audioclips
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 
-# ========== CONFIGURATION (THIRD CHANNEL) ==========
-IMAGES_DIR = "images"                # change folder name if needed
+# ========== CONFIGURATION ==========
+IMAGES_DIR = "images"
 OUTPUT_VIDEO = "thirdchannel_video.mp4"
-ASSIGNMENT_DURATION = 5
+ASSIGNMENT_DURATION = 5        # seconds per prompt
 OUTRO_DURATION = 10
 INTRO_DURATION = 5
 VIDEO_SIZE = (1080, 1920)
 MUSIC_FILE = "background_music.mp3"
-
-# State and data files (unique for this channel)
 STATE_FILE = "state_third.json"
 INTROS_FILE = "intros_third.json"
 PROMPTS_FILE = "prompts_third.json"
 
-# YouTube playlist settings – change to your channel's name
-PLAYLIST_TITLE = "Nothing to something videos | Creative Daily | Stupidest Broke Guy"
-PLAYLIST_DESCRIPTION = """Daily creative prompts for your project to go from nothing to fortune 500 using AI.#stupidorange #stupidestbrokeguy #AIprompts #Shorts
+# Limit prompts to keep video under 60s (intro 5s + 7*5s + outro 10s = 50s)
+MAX_PROMPTS = 7
 
-#stupidorange #AIprompts #Shorts"""
+PLAYLIST_TITLE = "Creative Daily | Third Channel Name"
+PLAYLIST_DESCRIPTION = """Daily creative prompts for [your niche] using AI.
 
-# Thumbnail settings
+#YourHashtag #AIprompts #Shorts"""
+
 THUMB_WIDTH, THUMB_HEIGHT = 1280, 720
 
-# ========== Helper functions (same as before) ==========
+# ========== Helper functions ==========
 def find_free_port(start_port=8080, end_port=8090):
     for port in range(start_port, end_port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -59,7 +57,7 @@ def load_json(filepath, default_list):
 def save_state(state):
     with open(STATE_FILE, 'w', encoding='utf-8') as f:
         json.dump(state, f, indent=2)
-    print(f"💾 State saved to {STATE_FILE}: intro_index={state.get('intro_index')}, background_index={state.get('background_index')}, thumbnail_bg_index={state.get('thumbnail_bg_index', 0)}")
+    print(f"💾 State saved to {STATE_FILE}")
 
 def get_next_item(state_key, items, state):
     if not items:
@@ -68,7 +66,7 @@ def get_next_item(state_key, items, state):
     item = items[idx]
     state[state_key] = (idx + 1) % len(items)
     save_state(state)
-    print(f"   🔄 {state_key}: was {idx}, now {state[state_key]} (next: {item[:40]}...)")
+    print(f"   🔄 {state_key}: was {idx}, now {state[state_key]}")
     return item
 
 def create_text_overlay(text, duration, font_size=90, bg_color=(0,0,0,200)):
@@ -248,7 +246,7 @@ def push_state_to_repo():
 
 def main():
     print("="*60)
-    print("🎬 Third Channel – YouTube Shorts Generator")
+    print("🎬 Third Channel – YouTube Shorts Generator (Fixed Audio)")
     print("="*60)
 
     # Load state
@@ -262,12 +260,16 @@ def main():
         print(f"📂 Created new state: {state}")
 
     intros = load_json(INTROS_FILE, ["🔥 3 A.I. Prompts\nFor Your Niche"])
-    prompts = load_json(PROMPTS_FILE, [])
-    if not prompts:
+    all_prompts = load_json(PROMPTS_FILE, [])
+    if not all_prompts:
         print("❌ No prompts found in prompts_third.json")
         sys.exit(1)
 
-    # Background images folder
+    # Limit to MAX_PROMPTS (e.g., 7) to keep video short
+    prompts = all_prompts[:MAX_PROMPTS]
+    print(f"📋 Using first {len(prompts)} of {len(all_prompts)} prompts (MAX_PROMPTS={MAX_PROMPTS})")
+
+    # Background images
     if not os.path.exists(IMAGES_DIR):
         os.makedirs(IMAGES_DIR)
         print(f"❌ No images folder – create '{IMAGES_DIR}' and add images")
@@ -297,7 +299,7 @@ def main():
     intro_txt = create_text_overlay(intro_text, INTRO_DURATION, font_size=90, bg_color=(0,0,0,200))
     clips.append(CompositeVideoClip([intro_bg_clip, intro_txt]))
 
-    # Prompts
+    # Prompts (limited)
     for i, prompt in enumerate(prompts):
         display = f"Prompt {i+1}\n\n{prompt}"
         bg = next_background()
@@ -315,16 +317,30 @@ def main():
 
     final_video = concatenate_videoclips(clips, method="compose")
 
+    # ===== FIXED AUDIO LOOP (moviepy 2.x compatible) =====
     if os.path.exists(MUSIC_FILE):
         audio = AudioFileClip(MUSIC_FILE)
         if audio.duration < final_video.duration:
-            audio = audio.loop(int(final_video.duration / audio.duration) + 1)
-        audio = audio.subclipped(0, final_video.duration).with_volume_scaled(0.3)
+            # Loop by concatenating multiple copies
+            n = int(final_video.duration / audio.duration) + 1
+            audio = concatenate_audioclips([audio] * n)
+            audio = audio.subclipped(0, final_video.duration)
+        else:
+            audio = audio.subclipped(0, final_video.duration)
+        audio = audio.with_volume_scaled(0.3)
         final_video = final_video.with_audio(audio)
+        print("🎵 Music added")
 
     final_video.write_videofile(OUTPUT_VIDEO, fps=24, codec='libx264', audio_codec='aac')
     size_mb = os.path.getsize(OUTPUT_VIDEO) / (1024 * 1024)
     print(f"✅ Video saved: {OUTPUT_VIDEO} ({size_mb:.1f} MB)")
+
+    total_duration = final_video.duration
+    if total_duration > 60:
+        print(f"⚠️ Warning: Video duration {total_duration:.1f}s exceeds 60s. It may not be treated as a Short.")
+        print(f"   → Reduce MAX_PROMPTS or shorten ASSIGNMENT_DURATION.")
+    else:
+        print(f"✅ Video duration {total_duration:.1f}s → eligible for YouTube Shorts.")
 
     # Thumbnail
     if "thumbnail_bg_index" not in state:
@@ -343,7 +359,7 @@ def main():
         title = title[:97] + "..."
 
     prompts_list = "\n".join([f"{i+1}. {p}" for i, p in enumerate(prompts)])
-    description = f"""In this YouTube Short, we give you 3 copy‑paste ChatGPT prompts for project to align with fortune 500 produced with love by Stupidest Broke Guy.
+    description = f"""In this YouTube Short, we give you {len(prompts)} copy‑paste ChatGPT prompts for [your niche].
 
 🔥 THE PROMPTS:
 
@@ -357,15 +373,13 @@ def main():
 
 Join the Creative Daily: creativedaily.stupidorange.com
 
-#stupidorange #creativedaily #stupidestbrokeguy #dubai #UAE #creavive #ai #fortune500 #Fortune500 #AIprompts #Shorts
+#ThirdChannel #AIprompts #Shorts
 """
-    tags = ["stupidorange", "AIprompts", "Shorts","Fortune500","UAE","dubai"]
+    tags = ["ThirdChannel", "AIprompts", "Shorts"]
 
-    # Upload
     print("\n📤 Uploading to YouTube...")
     video_url = upload_to_youtube(OUTPUT_VIDEO, title, description, tags, thumbnail_path=thumbnail_file)
 
-    # Push state
     print("\n📁 Pushing third channel state to GitHub...")
     push_state_to_repo()
 
