@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 
 # ========== CONFIGURATION (THIRD CHANNEL) ==========
-IMAGES_DIR = "images_third"                # change folder name if needed
+IMAGES_DIR = "images"                # change folder name if needed
 OUTPUT_VIDEO = "thirdchannel_video.mp4"
 ASSIGNMENT_DURATION = 5
 OUTRO_DURATION = 10
