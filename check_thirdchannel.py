@@ -30,10 +30,10 @@ PROMPTS_FILE = "prompts_third.json"
 # Limit prompts to keep video under 60s (intro 5s + 7*5s + outro 10s = 50s)
 MAX_PROMPTS = 7
 
-PLAYLIST_TITLE = "Creative Daily | Third Channel Name"
-PLAYLIST_DESCRIPTION = """Daily creative prompts for [your niche] using AI.
+PLAYLIST_TITLE = "Rags To Riches | Proven Strategies | Creative Daily | Stupidest Broke Guy"
+PLAYLIST_DESCRIPTION = """Daily creative prompts for creativity to rise so you can create Fortune 500  companies using proven strategies by fortune 500 companies.#stupidorange #AIprompts #Shorts
 
-#YourHashtag #AIprompts #Shorts"""
+#stupidorange #fortune500 #dubai #UAE #AIprompts #Shorts"""
 
 THUMB_WIDTH, THUMB_HEIGHT = 1280, 720
 
@@ -359,7 +359,7 @@ def main():
         title = title[:97] + "..."
 
     prompts_list = "\n".join([f"{i+1}. {p}" for i, p in enumerate(prompts)])
-    description = f"""In this YouTube Short, we give you {len(prompts)} copy‑paste ChatGPT prompts for [your niche].
+    description = f"""In this YouTube Short, we give you {len(prompts)} with proven copy‑paste ChatGPT prompts for creative ideas to turn to Fortune 500 Companies.
 
 🔥 THE PROMPTS:
 
@@ -373,9 +373,9 @@ def main():
 
 Join the Creative Daily: creativedaily.stupidorange.com
 
-#ThirdChannel #AIprompts #Shorts
+#stupidorange #AIprompts #Shorts
 """
-    tags = ["ThirdChannel", "AIprompts", "Shorts"]
+    tags = ["stupidorange", "AIprompts", "Shorts"]
 
     print("\n📤 Uploading to YouTube...")
     video_url = upload_to_youtube(OUTPUT_VIDEO, title, description, tags, thumbnail_path=thumbnail_file)
