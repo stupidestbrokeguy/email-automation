@@ -1,0 +1,58 @@
+name: Upload Daily Affirmations
+
+on:
+  schedule:
+    # Runs daily at 10:00 AM Dubai time (6:00 UTC) – change as needed
+    - cron: '0 6 * * *'
+  workflow_dispatch:   # allows manual trigger
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install pillow moviepy google-api-python-client google-auth-oauthlib pyyaml numpy
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Create directories
+        run: |
+          mkdir -p images_affirmations
+
+      - name: Decode YouTube token
+        env:
+          TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
+        run: |
+          echo "$TOKEN" | base64 -d > token.pickle
+
+      - name: Create client_secrets.json
+        env:
+          CLIENT_SECRETS: ${{ secrets.CLIENT_SECRETS_JSON }}
+        run: |
+          echo "$CLIENT_SECRETS" > client_secrets.json
+
+      - name: Run affirmations script
+        run: python affirmations_video.py
+
+      - name: Upload logs (on failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: affirmations-output
+          path: |
+            affirmations_video.mp4
+            state_affirmations.json
