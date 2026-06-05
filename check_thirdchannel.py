@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Create a YouTube Shorts video for third channel – fixed audio loop and prompt limit.
+Now with prompt rotation and working thumbnails.
 """
 
 import os
@@ -10,6 +11,7 @@ import pickle
 import socket
 import subprocess
 import textwrap
+import time
 from datetime import datetime
 from moviepy import ImageClip, CompositeVideoClip, concatenate_videoclips, AudioFileClip, concatenate_audioclips
 from PIL import Image, ImageDraw, ImageFont
@@ -202,6 +204,11 @@ def upload_to_youtube(video_path, title, description, tags, thumbnail_path=None,
     response = request.execute()
     video_id = response['id']
     video_url = f"https://youtu.be/{video_id}"
+    print(f"✅ Video uploaded, ID: {video_id}")
+
+    # Wait a moment for YouTube to process the video before setting thumbnail
+    print("⏳ Waiting 3 seconds for YouTube to process...")
+    time.sleep(3)
 
     if thumbnail_path and os.path.exists(thumbnail_path):
         try:
@@ -209,10 +216,14 @@ def upload_to_youtube(video_path, title, description, tags, thumbnail_path=None,
                 videoId=video_id,
                 media_body=MediaFileUpload(thumbnail_path)
             ).execute()
-            print(f"   🖼️ Custom thumbnail uploaded successfully")
+            print("   ✅ Custom thumbnail set successfully on the video")
         except Exception as e:
-            print(f"   ⚠️ Could not upload custom thumbnail: {e}")
+            print(f"   ⚠️ Could not set custom thumbnail: {e}")
+            print("   The video will use an auto-generated thumbnail instead.")
+    else:
+        print("   ⚠️ No thumbnail file found, skipping thumbnail upload")
 
+    # Add to playlist
     youtube.playlistItems().insert(
         part='snippet',
         body={
@@ -222,6 +233,7 @@ def upload_to_youtube(video_path, title, description, tags, thumbnail_path=None,
             }
         }
     ).execute()
+    print(f"   📂 Added to playlist: {PLAYLIST_TITLE}")
     return video_url
 
 def push_state_to_repo():
@@ -246,7 +258,7 @@ def push_state_to_repo():
 
 def main():
     print("="*60)
-    print("🎬 Third Channel – YouTube Shorts Generator (Fixed Audio)")
+    print("🎬 Third Channel – YouTube Shorts Generator (Fixed Audio + Prompt Rotation)")
     print("="*60)
 
     # Load state
@@ -255,7 +267,7 @@ def main():
             state = json.load(f)
         print(f"📂 Loaded state: {state}")
     else:
-        state = {"intro_index": 0, "background_index": 0, "thumbnail_bg_index": 0}
+        state = {"intro_index": 0, "background_index": 0, "thumbnail_bg_index": 0, "prompt_offset": 0}
         save_state(state)
         print(f"📂 Created new state: {state}")
 
@@ -265,9 +277,25 @@ def main():
         print("❌ No prompts found in prompts_third.json")
         sys.exit(1)
 
-    # Limit to MAX_PROMPTS (e.g., 7) to keep video short
-    prompts = all_prompts[:MAX_PROMPTS]
-    print(f"📋 Using first {len(prompts)} of {len(all_prompts)} prompts (MAX_PROMPTS={MAX_PROMPTS})")
+    # --- PROMPT ROTATION (never repeat until all used) ---
+    offset = state.get("prompt_offset", 0)
+    prompts = []
+    for i in range(MAX_PROMPTS):
+        idx = (offset + i) % len(all_prompts)
+        prompts.append(all_prompts[idx])
+    # Update offset for next run
+    state["prompt_offset"] = (offset + MAX_PROMPTS) % len(all_prompts)
+    save_state(state)
+    print(f"📋 Using prompts starting at index {offset} (next offset: {state['prompt_offset']})")
+    print(f"   Prompts selected: {prompts}")
+
+    # Check video duration
+    estimated_duration = INTRO_DURATION + (len(prompts) * ASSIGNMENT_DURATION) + OUTRO_DURATION
+    if estimated_duration > 60:
+        print(f"⚠️ Estimated duration {estimated_duration}s > 60s. Reduce MAX_PROMPTS or shorten durations.")
+        sys.exit(1)
+    else:
+        print(f"✅ Estimated duration {estimated_duration}s (under 60s limit)")
 
     # Background images
     if not os.path.exists(IMAGES_DIR):
@@ -299,7 +327,7 @@ def main():
     intro_txt = create_text_overlay(intro_text, INTRO_DURATION, font_size=90, bg_color=(0,0,0,200))
     clips.append(CompositeVideoClip([intro_bg_clip, intro_txt]))
 
-    # Prompts (limited)
+    # Prompts (rotated)
     for i, prompt in enumerate(prompts):
         display = f"Prompt {i+1}\n\n{prompt}"
         bg = next_background()
@@ -317,11 +345,10 @@ def main():
 
     final_video = concatenate_videoclips(clips, method="compose")
 
-    # ===== FIXED AUDIO LOOP (moviepy 2.x compatible) =====
+    # Fixed audio loop (moviepy 2.x compatible)
     if os.path.exists(MUSIC_FILE):
         audio = AudioFileClip(MUSIC_FILE)
         if audio.duration < final_video.duration:
-            # Loop by concatenating multiple copies
             n = int(final_video.duration / audio.duration) + 1
             audio = concatenate_audioclips([audio] * n)
             audio = audio.subclipped(0, final_video.duration)
@@ -338,7 +365,6 @@ def main():
     total_duration = final_video.duration
     if total_duration > 60:
         print(f"⚠️ Warning: Video duration {total_duration:.1f}s exceeds 60s. It may not be treated as a Short.")
-        print(f"   → Reduce MAX_PROMPTS or shorten ASSIGNMENT_DURATION.")
     else:
         print(f"✅ Video duration {total_duration:.1f}s → eligible for YouTube Shorts.")
 
