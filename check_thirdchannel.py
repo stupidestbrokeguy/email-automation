@@ -354,7 +354,7 @@ def main():
 
     # YouTube metadata
     today = datetime.now().strftime("%B %d, %Y")
-    title = f"{intro_title} | {today} | Third Channel Name #Shorts"
+    title = f"{intro_title} | {today} | Stupidest Broke Guy #creativedaily"
     if len(title) > 100:
         title = title[:97] + "..."
 
@@ -373,8 +373,7 @@ def main():
 
 Join the Creative Daily: creativedaily.stupidorange.com
 
-#stupidorange #AIprompts #Shorts
-"""
+#stupidorange #AIprompts #Shorts #stupidestbrokeguy"""
     tags = ["stupidorange", "AIprompts", "Shorts"]
 
     print("\n📤 Uploading to YouTube...")
