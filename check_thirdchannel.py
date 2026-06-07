@@ -32,8 +32,12 @@ PROMPTS_FILE = "prompts_third.json"
 # Limit prompts to keep video under 60s (intro 5s + 7*5s + outro 10s = 50s)
 MAX_PROMPTS = 7
 
-PLAYLIST_TITLE = "Rags To Riches | Proven Strategies | Creative Daily | Stupidest Broke Guy"
-PLAYLIST_DESCRIPTION = """Daily creative prompts for creativity to rise so you can create Fortune 500  companies using proven strategies by fortune 500 companies.#stupidorange #AIprompts #Shorts
+PLAYLIST_TITLE = "Secure Creative Entreprenuer Habits | Proven Strategies Dubai | Creative Daily | Stupidest Broke Guy"
+PLAYLIST_DESCRIPTION = """Are you ready for a Dubai Business Setup or have you already started your journey? Whether you're in the Dubai Fashion Business, enjoy Dubai Shopping, or simply keep up with Dubai news, cultivating the right Entrepreneur Habits is everything.
+
+In this video, discover how to Secure a Creative Entrepreneur Habits by using simple Daily Affirmations in Dubai. Say these powerful lines every time you visit Burj Khalifa, Dubai Mall, or a Dubai Restaurant—even while doing Dubai Tourism. Speak to nature with a Creative Royalty Tracking Mindset, and train your brain to default toward building a Passive Wealth System.
+
+Whether you're out enjoying the city or working on your business, let these affirmations align you with success, abundance, and creativity. Watch now and start acting like a true creative entrepreneur in Dubai.##stupidorange #AIprompts #Shorts
 
 #stupidorange #fortune500 #dubai #UAE #AIprompts #Shorts"""
 
@@ -380,12 +384,16 @@ def main():
 
     # YouTube metadata
     today = datetime.now().strftime("%B %d, %Y")
-    title = f"{intro_title} | {today} | Stupidest Broke Guy #creativedaily"
+    title = f"{intro_title} | {today} | Stupidest Broke Guy Dubai #creativedaily"
     if len(title) > 100:
         title = title[:97] + "..."
 
     prompts_list = "\n".join([f"{i+1}. {p}" for i, p in enumerate(prompts)])
-    description = f"""In this YouTube Short, we give you {len(prompts)} with proven copy‑paste ChatGPT prompts for creative ideas to turn to Fortune 500 Companies.
+    description = f"""In this YouTube Short, we give you {len(prompts)} with proven copy‑paste ChatGPT prompts for creative ideas to turn to Fortune 500 Companies.Are you ready for a Dubai Business Setup or have you already started your journey? Whether you're in the Dubai Fashion Business, enjoy Dubai Shopping, or simply keep up with Dubai news, cultivating the right Entrepreneur Mindset is everything.
+
+In this video, discover how to Secure a Creative Entrepreneur Mindset by using simple Daily Affirmations in Dubai. Say these powerful lines every time you visit Burj Khalifa, Dubai Mall, or a Dubai Restaurant—even while doing Dubai Tourism. Speak to nature with a Creative Royalty Tracking Mindset, and train your brain to default toward building a Passive Wealth System.
+
+Whether you're out enjoying the city or working on your business, let these affirmations align you with success, abundance, and creativity. Watch now and start thinking like a true creative entrepreneur in Dubai.
 
 🔥 THE PROMPTS:
 
@@ -399,8 +407,8 @@ def main():
 
 Join the Creative Daily: creativedaily.stupidorange.com
 
-#stupidorange #AIprompts #Shorts #stupidestbrokeguy"""
-    tags = ["stupidorange", "AIprompts", "Shorts"]
+#stupidorange #entreprenuerhabits #Dubai #Shorts #stupidestbrokeguy"""
+    tags = ["stupidorange", "AIprompts", "Shorts","Dubai"]
 
     print("\n📤 Uploading to YouTube...")
     video_url = upload_to_youtube(OUTPUT_VIDEO, title, description, tags, thumbnail_path=thumbnail_file)
