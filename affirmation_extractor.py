@@ -12,8 +12,12 @@ from datetime import datetime
 import fitz  # PyMuPDF
 
 # ========== CONFIGURATION ==========
-PLAYLIST_TITLE = "Creative Daily Affirmations | Stupid Orange"
-PLAYLIST_DESCRIPTION = """Daily affirmations from Creative Daily to help you start collecting royalties from your creativity."""
+PLAYLIST_TITLE = "Secure Entreprenuer Mindset | Stupid Orange Dubai"
+PLAYLIST_DESCRIPTION = """Are you ready for a Dubai Business Setup or have you already started your journey? Whether you're in the Dubai Fashion Business, enjoy Dubai Shopping, or simply keep up with Dubai news, cultivating the right Entrepreneur Mindset is everything.
+
+In this playlist, discover how to Secure a Creative Entrepreneur Mindset by using simple Daily Affirmations in Dubai. Say these powerful lines every time you visit Burj Khalifa, Dubai Mall, or a Dubai Restaurant—even while doing Dubai Tourism. Speak to nature with a Creative Royalty Tracking Mindset, and train your brain to default toward building a Passive Wealth System.
+
+Whether you're out enjoying the city or working on your business, let these affirmations align you with success, abundance, and creativity. Watch now and start thinking like a true creative entrepreneur in Dubai."""
 
 TEMPLATE_PATH = "affirmation_template.png"
 
