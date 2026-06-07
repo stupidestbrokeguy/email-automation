@@ -13,7 +13,7 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 
 # ========== CONFIGURATION ==========
-VIDEO_TITLE = "Stupid Broke Money, What Happened? - Stupid Orange, Stupidest Broke Guy, Creative Daily"
+VIDEO_TITLE = "Stupid Broke Money, What Happened? - Stupid Orange Dubai, Stupidest Broke Guy, Creative Daily"
 HASHTAGS = "#stupidorange #creativedaily #stupidestbrokeguy #Dubai #UAE #fyp"
 VIDEO_DURATION = 15  # seconds
 IMAGES_FOLDER = "daily_images"  # Folder containing 1.png to 15.png
