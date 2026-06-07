@@ -318,9 +318,13 @@ class AffirmationExtractor:
         print(f"\n📤 Uploading to YouTube...")
         date_obj = datetime.strptime(target_date, "%Y-%m-%d")
         formatted_date = date_obj.strftime("%B %d, %Y")
-        full_title = f"Stop Being Broke!, Say This- | {formatted_date} | Stupid Orange"
+        full_title = f"SSecure Creative Enteprenuer Mindset!, Say This- | {formatted_date} | Stupid Orange Dubai"
         
-        video_description = f"""🌟 Stop Being Broke!, Say This - DAILY AFFIRMATION - {formatted_date} 🌟
+        video_description = f"""🌟Are you ready for a Dubai Business Setup or have you already started your journey? Whether you're in the Dubai Fashion Business, enjoy Dubai Shopping, or simply keep up with Dubai news, cultivating the right Entrepreneur Mindset is everything.
+
+In this video, discover how to Secure a Creative Entrepreneur Mindset by using simple Daily Affirmations in Dubai. Say these powerful lines every time you visit Burj Khalifa, Dubai Mall, or a Dubai Restaurant—even while doing Dubai Tourism. Speak to nature with a Creative Royalty Tracking Mindset, and train your brain to default toward building a Passive Wealth System.
+
+Whether you're out enjoying the city or working on your business, let these affirmations align you with success, abundance, and creativity. Watch now and start thinking like a true creative entrepreneur in Dubai. - {formatted_date} 🌟
 
 {affirmation_text}
 
@@ -329,9 +333,9 @@ class AffirmationExtractor:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🔗 www.stupidorange.com
-📘 creativedaily.stupidorange.com
+📘 creativedaily.stupidorange.com | Secure a copy of Creative Daily Devotional
 
-#affirmation #dailyaffirmation #creativedaily #stupidestbrokeguy #UAE #Dubai
+ #creativedaily #stupidestbrokeguy #UAE #Dubai #entreprenuermindset
 """
         try:
             from google.oauth2.credentials import Credentials
