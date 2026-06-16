@@ -132,7 +132,7 @@ def auto_reset_progress(progress_file, total_emails, batch_size):
         with open(progress_file, 'w') as f:
             json.dump(progress, f, indent=4)
 
-        with open("email_sending_log1.txt", "a") as log:
+        with open("email_sending_log2.txt", "a") as log:  # fixed to log2
             log.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - 🔄 AUTO-RESET: Starting cycle #{completed_cycles + 1}\n")
 
         print(f"\n🔄 AUTO-RESET COMPLETED! Starting cycle #{completed_cycles + 1}")
@@ -140,9 +140,10 @@ def auto_reset_progress(progress_file, total_emails, batch_size):
 
     return False, 0
 
-def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=None, delay=5):
+def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=None, delay=5, qr_image_path="qr_code.png"):
     """
-    Completely automated bulk email sender with no user input
+    Completely automated bulk email sender with no user input.
+    Attaches the QR code image as a separate file.
     """
     progress_file = "send_progress2.json"
 
@@ -167,16 +168,13 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
     # Get current batch progress
     start_index = get_current_batch(progress_file)
 
-    # Check if all emails have been sent (should be caught by auto-reset, but just in case)
     if start_index >= total_records:
         print("✅ All emails have been sent and cycle complete. Nothing to send today.")
         return True
 
-    # Calculate end index for this batch
     end_index = min(start_index + batch_size, total_records)
     batch_df = df.iloc[start_index:end_index]
 
-    # Display progress
     print(f"\n📧 TODAY'S BATCH: Sending emails {start_index + 1} to {end_index} (Total: {len(batch_df)} emails)")
     print(f"📦 Batch size: {batch_size} emails per day")
     print(f"🔄 Cycle #{completed_cycles + 1 if was_reset else completed_cycles + 1}")
@@ -186,6 +184,19 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
     if not os.path.exists(cv_path):
         print(f"❌ Error: CV file not found at {cv_path}")
         return False
+
+    # Check if QR image exists and load it
+    qr_data = None
+    qr_filename = os.path.basename(qr_image_path)
+    if os.path.exists(qr_image_path):
+        try:
+            with open(qr_image_path, 'rb') as f:
+                qr_data = f.read()
+            print(f"🖼️ QR image loaded: {qr_filename}")
+        except Exception as e:
+            print(f"⚠️ Could not read QR image: {e}")
+    else:
+        print(f"ℹ️ QR image not found at {qr_image_path} – will not attach it.")
 
     # Initialize email sender
     email_sender = EmailSender()
@@ -203,7 +214,6 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
         email_sender.quit()
         return False
 
-    # Send emails for today's batch
     successful = 0
     failed = 0
     failed_emails_list = []
@@ -216,29 +226,28 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
             recipient_email = str(row['email']).strip()
             recipient_name = str(row.get('name', 'Candidate')).strip() if 'name' in df.columns else "Candidate"
 
-            # Skip invalid emails
             if '@' not in recipient_email or pd.isna(recipient_email):
                 print(f"⏭️ [{idx+1}/{len(batch_df)}] Skipping invalid email: {recipient_email}")
                 failed += 1
                 failed_emails_list.append({'name': recipient_name, 'email': recipient_email, 'reason': 'Invalid email'})
                 continue
 
-            # Create email
+            # Create email container
             msg = MIMEMultipart()
             msg['From'] = email_sender.SENDER_EMAIL
             msg['To'] = recipient_email
 
-            # Add CC recipients if provided
             if cc_emails:
                 msg['Cc'] = ', '.join(cc_emails)
 
-            # Subject
-            subject = f"IT Support | Sale Representative | Application - Maxwell Tinashe Vheremu"
+            # Subject – updated with the "10 Things" headline
             if 'name' in df.columns:
-                subject = f"Application for IT Support | Sales Representative at {recipient_name} - Maxwell Tinashe Vheremu"
+                subject = f"10 Things Companies In Dubai Miss That Cost Them $100M A Year | Case Study On 100+ Companies I worked with | Application for IT Support | Sales Representative at {recipient_name} - Maxwell Tinashe Vheremu"
+            else:
+                subject = f"10 Things Companies In Dubai Miss That Cost Them $100M A Year | Case Study On 100+ Companies | IT Support | Sales Representative | Application - Maxwell Tinashe Vheremu"
             msg['Subject'] = subject
 
-            # HTML email body
+            # HTML email body – the detailed message
             html_message = f"""
             <html>
                 <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
@@ -247,11 +256,27 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
 
                         <p>Dear Hiring Manager,</p>
 
-                        <p>I am writing to apply for the IT Support | Sales Representative role, as my hands-on experience in Dubai Field IT Services Sales , IT infrastructure management, system troubleshooting, and user support across banking, security, and tech sectors aligns well with your needs.</p>
+                        <p>I have worked with 100+ companies in Dubai as IT Support Executive with Sales Experience as my hands-on experience in Dubai Field IT Services Sales. Here Are Ten Things That are costing them $100M+ a year in lost business revenue. I hope you go through the list and identify where the average company is losing business.</p>
 
-                        <p>With a strong background in Customer Relationship Management, Business Development, Windows Server, Active Directory, cloud platforms (AWS/Azure), and security tools, I am confident in delivering reliable and efficient IT operations and Business Development.</p>
+                        <p><strong>Number 1: Community</strong></p>
+                        <p>Most of the companies I have worked with have not managed to gather a well-engaged community of people around their business. Why is this important? By having a well-engaged community companies can reduce the cost of customer acquisition significantly through word of mouth, attention, reselling and upselling. Transferring clients to your community gives comfort knowing that you have people who trust you, be it WhatsApp, Telegram, Facebook or Instagram. Most companies regard social media followers as community which is wrong; a community is people you can contact at any given time, which disqualifies followers who are fed content that interests them. But transferring followers to your channels is a good start.</p>
 
-                        <p>I would greatly appreciate the opportunity to discuss how I can contribute to your team.</p>
+                        <p><strong>Number 2: Ads</strong></p>
+                        <p>Most average companies in Dubai use ads to boost sales and increase brand visibility. However, companies in Dubai have not utilized standard landing pages that let leads view a picture of product, a call to action, a video of the product, and a long copy letting user know more about the product. Landing pages can 10x the returns from Ad spending when done correctly by allowing leads to make a decision with good resources. Some leads might not want to buy but opt in on joining your community and you can put that after they finish the long copy and last call to action.</p>
+
+                        <p><strong>Number 3: Data</strong></p>
+                        <p>The average company in Dubai handles a large number of operations; however, they do not generate much data. By shifting from fire fighting to analyzing, companies can 10x their business revenue by acting informatively. When managing a community for example it is important to look at the numbers – a community dies when there is no growth and engagement; with data you can know best ways to improve engagement and growth. You can also assess the revenue you are managing to generate from your community through isolated targeted campaigns. Historical data backs the thesis that ads to your community convert 60%+ on average. I have tested it with results exceeding 80%. This helps out when launching new products – you will know that you are not starting from 0.</p>
+
+                        <p><strong>Conclusion</strong></p>
+                        <p>I would love to list all 10 Things Companies in Dubai Are Missing Out On, but this email is a Job Application so I will cut right to the chase. Please inspect my CV, call me, I am open for new exciting roles to further my career at your company. I would love to hear from you.</p>
+
+                        <p>Sample project with 1000+ Dubai Leads waiting list ready to make discovery calls.</p>
+
+                        <p>I created a sample project that sells t-shirts in Dubai to show my skills in Sales | Marketing | YouTube Automation | TikTok Automation | Cloud Computing | HTML | CSS | Photoshop | Python | AI | Canva | Photography | Copywriting | Systems Development | Solutions Architecture | Video Editing | etc.</p>
+
+                        <p>Please find attached a QR code that leads to my landing page where you can see a simple standard landing page, or you can open this link: <a href="http://www.stupidorange.com/product/stupi/landing/">www.stupidorange.com/product/stupi/landing/</a></p>
+
+                        <p>I look forward to hearing from you.</p>
 
                         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
                             <strong>Maxwell Tinashe Vheremu</strong><br>
@@ -271,6 +296,15 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
             encoders.encode_base64(cv_attachment)
             cv_attachment.add_header('Content-Disposition', f'attachment; filename="{cv_filename}"')
             msg.attach(cv_attachment)
+
+            # Attach QR code as a separate attachment (if available)
+            if qr_data:
+                try:
+                    qr_attachment = MIMEImage(qr_data, name=qr_filename)
+                    qr_attachment.add_header('Content-Disposition', f'attachment; filename="{qr_filename}"')
+                    msg.attach(qr_attachment)
+                except Exception as e:
+                    print(f"⚠️ Could not attach QR image: {e}")
 
             # Prepare recipient list
             all_recipients = [recipient_email]
@@ -295,12 +329,10 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
             failed += 1
             failed_emails_list.append({'name': recipient_name, 'email': recipient_email, 'reason': str(e)})
 
-    # Close connection
     email_sender.quit()
 
     # Save progress if all emails succeeded
     if successful == len(batch_df):
-        # Get current cycle count
         current_cycles = 0
         if os.path.exists(progress_file):
             try:
@@ -313,14 +345,12 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
         save_progress(progress_file, end_index, batch_size, successful, current_cycles)
         print(f"\n✅ PROGRESS SAVED! Next batch will start at index {end_index}")
 
-        # Check if we completed a cycle
         if end_index >= total_records:
             print(f"\n🎉 CYCLE #{current_cycles + 1} COMPLETED! All {total_records} emails sent!")
     else:
         print(f"\n⚠️ ONLY {successful}/{len(batch_df)} emails sent successfully.")
         print(f"❌ Progress NOT saved. Will retry the same batch tomorrow.")
 
-        # Save failed emails
         if failed_emails_list:
             retry_df = pd.DataFrame(failed_emails_list)
             retry_file = f"failed_batch_{datetime.now().strftime('%Y%m%d')}.xlsx"
@@ -348,14 +378,16 @@ def main():
     EXCEL_FILE = "emails2.xlsx"
     CV_PATH = "MAXWELLTINASHE.pdf"
     BATCH_SIZE = 90  # Change to 90 for production, use 2 for testing
-    CC_EMAILS = []  # Add emails if needed: ["hr@company.com"]
+    CC_EMAILS = []   # Add emails if needed: ["hr@company.com"]
     DELAY_BETWEEN_EMAILS = 5  # Seconds between emails
+    QR_IMAGE_PATH = "qr_code.png"  # Path to your QR code image
 
     print("="*60)
     print("🤖 AUTOMATED BATCH EMAIL SYSTEM")
     print("="*60)
     print(f"📂 Excel file: {EXCEL_FILE}")
     print(f"📎 CV: {CV_PATH}")
+    print(f"🖼️ QR image (attached): {QR_IMAGE_PATH}")
     print(f"📦 Batch size: {BATCH_SIZE} emails/day")
     print(f"⏰ Delay: {DELAY_BETWEEN_EMAILS} seconds")
     print(f"🔄 Auto-reset: ENABLED")
@@ -367,7 +399,8 @@ def main():
         cv_path=CV_PATH,
         batch_size=BATCH_SIZE,
         cc_emails=CC_EMAILS,
-        delay=DELAY_BETWEEN_EMAILS
+        delay=DELAY_BETWEEN_EMAILS,
+        qr_image_path=QR_IMAGE_PATH
     )
 
     # Exit with appropriate code for GitHub Actions
@@ -380,6 +413,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 # At the very end of email_automation.py, add this function if not present
 def save_progress_locally(last_index, batch_size):
     """Save progress to JSON file"""
