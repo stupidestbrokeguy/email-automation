@@ -270,11 +270,16 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
                         <p><strong>Conclusion</strong></p>
                         <p>I would love to list all 10 Things Companies in Dubai Are Missing Out On, but this email is a Job Application so I will cut right to the chase. Please inspect my CV, call me, I am open for new exciting roles to further my career at your company. I would love to hear from you.</p>
 
-                        <p>Sample project with 1000+ Dubai Leads waiting list ready to make discovery calls.</p>
+                        <!-- ============ UPDATED SOFT-SALE SECTION (BRIEF) ============ -->
+                        <p>Sample project with 1000+ Dubai Leads waiting list ready to make discovery calls. Fully Automated No Button Click. 100+ leads a day</p>
 
-                        <p>I created a sample project that sells t-shirts in Dubai to show my skills in Sales | Marketing | YouTube Automation | TikTok Automation | Cloud Computing | HTML | CSS | Photoshop | Python | AI | Canva | Photography | Copywriting | Systems Development | Solutions Architecture | Video Editing | etc.</p>
+                        <p>To prove these skills aren't just on paper, I built a live e-commerce ecosystem in Dubai that sells t-shirts. Instead of just telling you I can do it, I invite you to experience it: scan the QR code or click the link below to see the landing page, checkout flow, and automated lead capture in action. Feel free to grab a t-shirt—it's the best way to stress-test my system and see exactly what I can build for your company.</p>
+                        <!-- ========================================================= -->
 
-                        <p>Please find attached a QR code that leads to my landing page where you can see a simple standard landing page, or you can open this link: <a href="http://www.stupidorange.com/product/stupi/landing/">www.stupidorange.com/product/stupi/landing/</a></p>
+                        <p>Please scan the QR Code below to go to my landing page and see a simple standard landing page, or open this link: <a href="http://www.stupidorange.com/product/stupi/landing/">www.stupidorange.com/product/stupi/landing/</a></p>
+                        <div style="text-align: center; margin: 20px 0;">
+                            <img src="cid:qr_image" alt="QR Code" style="max-width: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px; padding: 5px;" />
+                        </div>
 
                         <p>I look forward to hearing from you.</p>
 
