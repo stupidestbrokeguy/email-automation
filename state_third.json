@@ -1,6 +1,6 @@
 {
-  "intro_index": 1,
-  "background_index": 1,
-  "thumbnail_bg_index": 0,
-  "prompt_offset": 29
+  "intro_index": 2,
+  "background_index": 0,
+  "thumbnail_bg_index": 1,
+  "prompt_offset": 6
 }
