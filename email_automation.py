@@ -247,7 +247,7 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
             msg['Subject'] = subject
 
             # HTML body – note the <img> tag with cid:qr_image
-                      html_message = f"""
+            html_message = f"""
             <html>
                 <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
                     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
