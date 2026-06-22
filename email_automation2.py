@@ -276,7 +276,7 @@ def send_bulk_emails_automated(excel_file, cv_path, batch_size=90, cc_emails=Non
                         <p>To prove these skills aren't just on paper, I built a live e-commerce ecosystem in Dubai that sells t-shirts. Instead of just telling you I can do it, I invite you to experience it: scan the QR code or click the link below to see the landing page, checkout flow, and automated lead capture in action. Feel free to grab a t-shirt—it's the best way to stress-test my system and see exactly what I can build for your company.</p>
                         <!-- ========================================================= -->
 
-                        <p>Please scan the QR Code below to go to my landing page and see a simple standard landing page, or open this link: <a href="http://www.stupidorange.com/product/stupi/landing/">www.stupidorange.com/product/stupi/landing/</a></p>
+                        <p>Please scan the QR Code below to go to my landing page and see a simple standard landing page, or open this link: <a href="http://www.stupidorange.com/product/stupidsolomon/landing/">www.stupidorange.com/product/stupi/landing/</a></p>
                         <div style="text-align: center; margin: 20px 0;">
                             <img src="cid:qr_image" alt="QR Code" style="max-width: 200px; height: auto; border: 1px solid #ddd; border-radius: 4px; padding: 5px;" />
                         </div>
