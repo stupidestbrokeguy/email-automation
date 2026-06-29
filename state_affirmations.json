@@ -1,6 +1,6 @@
 {
-  "intro_index": 0,
-  "background_index": 1,
-  "thumbnail_bg_index": 4,
-  "affirmation_offset": 18
+  "intro_index": 1,
+  "background_index": 0,
+  "thumbnail_bg_index": 0,
+  "affirmation_offset": 25
 }
