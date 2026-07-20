@@ -68,3 +68,5 @@
 2026-07-17 13:55:11 - Sent batch up to index 2700 (90 emails) - Cycle 2
 2026-07-18 13:30:57 - Sent batch up to index 2790 (90 emails) - Cycle 2
 2026-07-19 13:25:03 - Sent batch up to index 2817 (27 emails) - Cycle 2
+2026-07-20 14:10:29 - 🔄 AUTO-RESET: Starting cycle #4
+2026-07-20 14:23:00 - Sent batch up to index 90 (90 emails) - Cycle 3

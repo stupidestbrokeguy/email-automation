@@ -1,8 +1,8 @@
 {
-    "last_index": 2817,
-    "last_date": "2026-07-19 13:25:03",
-    "total_sent": 2817,
+    "last_index": 90,
+    "last_date": "2026-07-20 14:23:00",
+    "total_sent": 90,
     "batch_size": 90,
-    "last_batch_count": 27,
-    "completed_cycles": 2
+    "last_batch_count": 90,
+    "completed_cycles": 3
 }
