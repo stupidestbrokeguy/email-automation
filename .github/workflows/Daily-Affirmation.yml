@@ -1,9 +1,9 @@
 name: Daily Affirmation - 30 Second Clip
 
-on:
-  schedule:
-    - cron: '3 3 * * *'  # Runs at 3:03 AM UTC (7:03 AM Dubai time)
-  workflow_dispatch:  # Manual trigger (uses current date when manually run)
+# on:
+#   schedule:
+#     - cron: '3 3 * * *'  # Runs at 3:03 AM UTC (7:03 AM Dubai time)
+#   workflow_dispatch:  # Manual trigger (uses current date when manually run)
 
 jobs:
   send-affirmation:
