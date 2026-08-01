@@ -1,10 +1,10 @@
 name: Upload Daily Affirmations
 
-on:
-  schedule:
-    # Runs daily at 10:00 AM Dubai time (6:00 UTC) – change as needed
-    - cron: '0 6 * * *'
-  workflow_dispatch:   # allows manual trigger
+# on:
+#   schedule:
+#     # Runs daily at 10:00 AM Dubai time (6:00 UTC) – change as needed
+#     - cron: '0 6 * * *'
+#   workflow_dispatch:   # allows manual trigger
 
 jobs:
   upload:
