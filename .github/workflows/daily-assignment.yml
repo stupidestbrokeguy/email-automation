@@ -1,16 +1,16 @@
 name: Daily Assignment - 30 Second Clip
 
-on:
-  schedule:
-    # Run at 7:05 AM Dubai time (3:05 UTC) - 2 minutes after affirmation
-    - cron: '5 3 * * *'
-  workflow_dispatch:
-    inputs:
-      target_date:
-        description: 'Target date (YYYY-MM-DD)'
-        required: false
-        default: '2026-06-21'
-        type: string
+# on:
+#   schedule:
+#     # Run at 7:05 AM Dubai time (3:05 UTC) - 2 minutes after affirmation
+#     - cron: '5 3 * * *'
+#   workflow_dispatch:
+#     inputs:
+#       target_date:
+#         description: 'Target date (YYYY-MM-DD)'
+#         required: false
+#         default: '2026-06-21'
+#         type: string
 
 jobs:
   send-assignment:
