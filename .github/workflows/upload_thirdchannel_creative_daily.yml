@@ -1,10 +1,10 @@
 name: Upload Third Channel Creative Daily
 
-on:
-  schedule:
-    # Runs daily at 10:00 AM Dubai time (6:00 UTC) – change as needed
-    - cron: '0 6 * * *'
-  workflow_dispatch:
+# on:
+#   schedule:
+#     # Runs daily at 10:00 AM Dubai time (6:00 UTC) – change as needed
+#     - cron: '0 6 * * *'
+#   workflow_dispatch:
 
 jobs:
   upload:
